@@ -1,8 +1,6 @@
 # mcp-image-generator
 
-MCP (Model Context Protocol) server that creates application assets — icons, avatars, banners, posters, illustrations — with the Microsoft Foundry image model (`gpt-image-2`) and post-processes them with SkiaSharp (crop to aspect ratio, resize, trim, convert, make transparent, export icon sets).
-
-Point Claude Code, VS Code or any MCP client at the server and ask for assets in natural language; the files land directly in your project.
+MCP (Model Context Protocol) server that generates application image assets with the Microsoft Foundry image model (`gpt-image-2`) and post-processes them with SkiaSharp. Connect Claude Code, VS Code or any MCP client, ask for assets in natural language, and the files are written into your project.
 
 ## ✨ Features
 
@@ -14,25 +12,21 @@ Point Claude Code, VS Code or any MCP client at the server and ask for assets in
 
 ## 🚀 Getting started
 
-1. Copy the published files into a folder, e.g. `C:\Tools\ImageGenerator.McpServer\`. The server is a single binary plus `appsettings.json`; bundled native libraries (SkiaSharp) are extracted to the temp directory (`%TEMP%\.net\ImageGenerator.McpServer` on Windows, `$HOME/.net` or `/var/tmp/.net` on Linux) on first start.
-2. Set the Foundry connection (see Configuration below). The API key should come from an environment variable rather than a file:
+1. Copy the published files (a single binary plus `appsettings.json`) into a folder such as `C:\Tools\ImageGenerator.McpServer\`. Bundled native libraries are extracted to the temp directory on first start.
+2. Set the Foundry connection with environment variables (keep the API key out of files):
 
    ```
    setx ImageGenerator__Endpoint "https://<resource>.services.ai.azure.com/"
    setx ImageGenerator__ApiKey "<api-key>"
    ```
 
-3. Start the server:
-
-   ```
-   ImageGenerator.McpServer.exe
-   ```
+3. Start `ImageGenerator.McpServer.exe`.
 
    - MCP endpoint: `http://localhost:12080/mcp`
    - Health check: `http://localhost:12080/health`
    - Metrics: `http://localhost:9464/metrics`
 
-4. Connect a client (see Connecting clients below).
+4. Connect a client (see below).
 
 ### Run as a service
 
@@ -54,11 +48,11 @@ Environment=ImageGenerator__ApiKey=<api-key>
 Type=notify
 ```
 
-Logs are written to `../log/ImageGenerator.McpServer_<date>.log` relative to the executable.
+Logs: `../log/ImageGenerator.McpServer_<date>.log` relative to the executable.
 
 ## ⚙️ Configuration
 
-Settings are read from `appsettings.json` next to the executable and can be overridden with environment variables (`Section__Key`).
+Settings come from `appsettings.json` next to the executable; environment variables (`Section__Key`) override them.
 
 | Setting | Default | Description |
 |---------|---------|-------------|
@@ -101,11 +95,11 @@ VS Code (`.vscode/mcp.json`):
 }
 ```
 
-Any other MCP client: Streamable HTTP transport, URL `http://<host>:12080/mcp`, no authentication (run it on a trusted network).
+Other clients: Streamable HTTP at `http://<host>:12080/mcp`, no authentication (use on a trusted network).
 
 ## 🧰 Tools
 
-All file parameters are paths on the machine running the server (use absolute paths for project files). Relative paths resolve under the output directory. Pass `overwrite=true` to replace an existing file.
+File parameters are paths on the server machine (absolute paths recommended; relative paths resolve under the output directory). `overwrite=true` replaces an existing file.
 
 | Tool | What it does | Key parameters |
 |------|--------------|----------------|
@@ -120,7 +114,7 @@ All file parameters are paths on the machine running the server (use absolute pa
 | `make_transparent` | Make a background color transparent | `color`, `tolerance`, `feather` |
 | `export_image_sizes` | Export an icon to a size set, optionally with `.ico` | `preset` (favicon / pwa / android / ios / windows / scales) or `sizes[]`, `name`, `ico` |
 
-Results are JSON (saved path, size, format, bytes and, for generation, token usage). Add `includeImage=true` to also receive the image data.
+Results are JSON (path, size, format, bytes, token usage); `includeImage=true` also returns the image data.
 
 ### Examples
 
@@ -131,15 +125,15 @@ Results are JSON (saved path, size, format, bytes and, for generation, token usa
 - *"Turn `icon.png` into a favicon set."*
   → `export_image_sizes(input="<project>/icon.png", preset="favicon", outputPath="<project>/wwwroot")`
 
-The server has no knowledge of your project or asset conventions; style, composition, naming and target sizes come from the client's instructions.
+The server knows nothing about your project; style, naming and target sizes come from the client's instructions.
 
 ## 🗂️ Resources
 
-Files in the default output directory are listed as MCP resources with URIs like `generated-image://generate-20260911-120000-01-a1b2c3.png` and can be read as binary content. Tool results include a resource link when the saved file is in that directory.
+Files in the default output directory are exposed as `generated-image://<file>` resources (listed and readable as binary), and tool results include a resource link for files saved there.
 
 ## 📊 Metrics
 
-Prometheus text format is served at `http://localhost:9464/metrics` (set `Prometheus:Uri` to change or disable it). Setting `OTEL_EXPORTER_OTLP_ENDPOINT` additionally exports logs, metrics and traces via OTLP.
+Prometheus text format at `http://localhost:9464/metrics` (`Prometheus:Uri` changes or disables it); `OTEL_EXPORTER_OTLP_ENDPOINT` also exports logs, metrics and traces via OTLP.
 
 | Metric | Type | Labels | Meaning |
 |--------|------|--------|---------|
@@ -150,9 +144,3 @@ Prometheus text format is served at `http://localhost:9464/metrics` (set `Promet
 | `image_generation_retries_total` | counter | `tool`, `status_code` | Retries against Foundry (`0` = timeout) |
 | `mcp_server_operation_duration_seconds` | histogram | `mcp.method.name`, ... | MCP request handling (from the SDK) |
 | `application_uptime_seconds_total` | counter | | Uptime |
-
-ASP.NET Core, HttpClient and .NET runtime instrumentation are exported as well.
-
-## 📄 License
-
-MIT
