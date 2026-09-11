@@ -2,7 +2,6 @@ namespace ImageGenerator.McpServer;
 
 using System.Runtime.InteropServices;
 
-using ImageGenerator.McpServer.Prompts;
 using ImageGenerator.McpServer.Resources;
 using ImageGenerator.McpServer.Services;
 using ImageGenerator.McpServer.Telemetry;
@@ -34,7 +33,7 @@ public static class ApplicationExtensions
         "Generation takes 30 seconds to several minutes per image. " +
         "Input images and output paths are file paths on the server machine; use absolute paths for project assets and overwrite=true to replace existing files. " +
         "Results are saved to disk and the response contains the saved paths, image sizes and token usage. " +
-        "Use resize_image, crop_image, trim_image, convert_image, make_transparent and export_image_sizes to post-process existing files, list_images to find files in the output directory, and the prompts (app_icon, avatar, product_item, poster, banner, hero_visual, onboarding, scene) as starting points for prompts.";
+        "Use resize_image, crop_image, trim_image, convert_image, make_transparent and export_image_sizes to post-process existing files, and list_images to find files in the output directory.";
 
     //--------------------------------------------------------------------------------
     // System
@@ -204,7 +203,6 @@ public static class ApplicationExtensions
             .WithHttpTransport()
             .WithTools<GenerationTools>()
             .WithTools<ImageTools>()
-            .WithPrompts([typeof(AssetPrompts)])
             .WithListResourcesHandler(GeneratedImageResources.ListAsync)
             .WithReadResourceHandler(GeneratedImageResources.ReadAsync);
 

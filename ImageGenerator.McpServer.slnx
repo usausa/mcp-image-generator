@@ -19,7 +19,4 @@
     <File Path="LICENSE" />
     <File Path="README.md" />
   </Folder>
-  <Folder Name="/docs/">
-    <File Path="docs/Specification.md" />
-  </Folder>
 </Solution>

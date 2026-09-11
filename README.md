@@ -9,7 +9,6 @@ Point Claude Code, VS Code or any MCP client at the server and ask for assets in
 - **Generate** images from a prompt, or from reference images (`images/edits`) to keep a character or style.
 - **Final size in one call** — the model renders 1024x1024 / 1024x1536 / 1536x1024; pass `width` / `height` and the server picks the closest aspect ratio, crops and resizes.
 - **Post-process existing files** — resize, crop, trim margins, convert format, make a background transparent, export favicon / PWA / Android / iOS / Windows icon sets (with `.ico`).
-- **Prompt templates** for common asset types (app icon, avatar, product, poster, banner, hero visual, onboarding, scene).
 - **Resources** — generated files in the output directory are exposed as `generated-image://` resources.
 - **Operations ready** — runs as a Windows Service or systemd unit, Serilog file logs, OpenTelemetry metrics (Prometheus / OTLP) including token usage.
 
@@ -125,18 +124,14 @@ Results are JSON (saved path, size, format, bytes and, for generation, token usa
 
 ### Examples
 
-- *"Create a 1600x900 hero image for the streaming page: a girl in a blue and gold outfit on a rooftop at dusk, anime style, right half empty for the title. Save it as `Resources/Images/Stream/stream_hero.jpg`."*
-  → `generate_image(prompt, quality="high", width=1600, height=900, outputPath=".../stream_hero.jpg", overwrite=true)`
-- *"Make a voxel avatar of the character in `usa7_face.jpg`, 256x256."*
-  → `edit_image(prompt, images=[".../usa7_face.jpg"], width=256, height=256, outputPath=".../avatar_person04.jpg")`
+- *"Create a 1600x900 hero image: a city skyline at dusk, flat illustration style, right half empty for a title. Save it as `assets/hero.jpg`."*
+  → `generate_image(prompt, quality="high", width=1600, height=900, outputPath="<project>/assets/hero.jpg", overwrite=true)`
+- *"Redraw the character in `character.png` as a 256x256 pixel-art portrait."*
+  → `edit_image(prompt, images=["<project>/character.png"], width=256, height=256, outputPath="<project>/assets/portrait.png")`
 - *"Turn `icon.png` into a favicon set."*
-  → `export_image_sizes(input="icon.png", preset="favicon", outputPath=".../wwwroot")`
+  → `export_image_sizes(input="<project>/icon.png", preset="favicon", outputPath="<project>/wwwroot")`
 
-## 💬 Prompts
-
-Prompt templates return a ready-to-use prompt plus the suggested tool arguments. Each takes `subject` and optional `style` (`anime`, `anime-cinematic`, `flat-vector`, `watercolor-cat`, `pixel`, `voxel`) and `palette`.
-
-`app_icon` · `avatar` · `product_item` · `poster` · `banner` · `hero_visual` · `onboarding` · `scene`
+The server has no knowledge of your project or asset conventions; style, composition, naming and target sizes come from the client's instructions.
 
 ## 🗂️ Resources
 

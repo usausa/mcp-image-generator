@@ -5,63 +5,14 @@ using System.Text.Json;
 using ModelContextProtocol.Protocol;
 
 [Collection(ServerCollectionDefinition.Name)]
-public sealed class PromptAndResourceTests
+public sealed class ResourceTests
 {
     private readonly TestApplicationFactory factory;
 
-    public PromptAndResourceTests(TestApplicationFactory factory)
+    public ResourceTests(TestApplicationFactory factory)
     {
         this.factory = factory;
     }
-
-    //--------------------------------------------------------------------------------
-    // Prompts
-    //--------------------------------------------------------------------------------
-
-    [Fact]
-    public async Task ListPromptsReturnsAssetPrompts()
-    {
-        // Arrange
-        await using var client = await factory.CreateMcpClientAsync(TestContext.Current.CancellationToken);
-
-        // Act
-        var prompts = await client.ListPromptsAsync(cancellationToken: TestContext.Current.CancellationToken);
-
-        // Assert
-        var names = prompts.Select(static x => x.Name).Order(StringComparer.Ordinal).ToArray();
-        Assert.Equal(["app_icon", "avatar", "banner", "hero_visual", "onboarding", "poster", "product_item", "scene"], names);
-
-        var poster = prompts.First(static x => x.Name == "poster");
-        var arguments = poster.ProtocolPrompt.Arguments!.Select(static x => (x.Name, x.Required)).ToArray();
-        Assert.Contains(("subject", true), arguments);
-        Assert.Contains(("style", false), arguments);
-    }
-
-    [Fact]
-    public async Task GetPromptComposesStyleAndSubject()
-    {
-        // Arrange
-        await using var client = await factory.CreateMcpClientAsync(TestContext.Current.CancellationToken);
-
-        // Act
-        var result = await client.GetPromptAsync(
-            "banner",
-            new Dictionary<string, object?> { ["subject"] = "a summer festival campaign", ["style"] = "flat-vector", ["palette"] = "deep indigo and lantern orange" },
-            cancellationToken: TestContext.Current.CancellationToken);
-
-        // Assert
-        var message = Assert.Single(result.Messages);
-        Assert.Equal(Role.User, message.Role);
-        var text = Assert.IsType<TextContentBlock>(message.Content).Text;
-        Assert.Contains("Flat vector mascot icon style", text, StringComparison.Ordinal);
-        Assert.Contains("Wide promotional banner illustration for a summer festival campaign", text, StringComparison.Ordinal);
-        Assert.Contains("Colour palette: deep indigo and lantern orange.", text, StringComparison.Ordinal);
-        Assert.Contains("width=1200, height=600", text, StringComparison.Ordinal);
-    }
-
-    //--------------------------------------------------------------------------------
-    // Resources
-    //--------------------------------------------------------------------------------
 
     [Fact]
     public async Task GeneratedFileInOutputDirectoryIsExposedAsResource()
