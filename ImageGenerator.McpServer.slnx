@@ -1,0 +1,25 @@
+<Solution>
+  <Folder Name="/Backend/">
+    <Project Path="src/ImageGenerator.McpServer/ImageGenerator.McpServer.csproj" DefaultStartup="true" />
+  </Folder>
+  <Folder Name="/Test/">
+    <Project Path="tests/ImageGenerator.McpServer.Tests/ImageGenerator.McpServer.Tests.csproj" />
+  </Folder>
+  <Folder Name="/Solution Items/">
+    <File Path=".editorconfig" />
+    <File Path=".gitattributes" />
+    <File Path=".gitignore" />
+    <File Path="AGENTS.md" />
+    <File Path="Analyzers.ruleset" />
+    <File Path="CLAUDE.md" />
+    <File Path="CodeCoverage.runsettings" />
+    <File Path="Directory.Build.props" />
+    <File Path="Directory.Build.targets" />
+    <File Path="ImageGenerator.McpServer.sln.DotSettings" />
+    <File Path="LICENSE" />
+    <File Path="README.md" />
+  </Folder>
+  <Folder Name="/docs/">
+    <File Path="docs/Specification.md" />
+  </Folder>
+</Solution>
