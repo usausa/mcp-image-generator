@@ -150,9 +150,3 @@ Prometheus text format is served at `http://localhost:9464/metrics` (set `Promet
 | `image_generation_retries_total` | counter | `tool`, `status_code` | Retries against Foundry (`0` = timeout) |
 | `mcp_server_operation_duration_seconds` | histogram | `mcp.method.name`, ... | MCP request handling (from the SDK) |
 | `application_uptime_seconds_total` | counter | | Uptime |
-
-ASP.NET Core, HttpClient and .NET runtime instrumentation are exported as well.
-
-## 📄 License
-
-MIT
