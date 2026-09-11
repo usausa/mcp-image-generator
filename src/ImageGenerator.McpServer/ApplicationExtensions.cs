@@ -2,6 +2,8 @@ namespace ImageGenerator.McpServer;
 
 using System.Runtime.InteropServices;
 
+using ImageGenerator.McpServer.Prompts;
+using ImageGenerator.McpServer.Resources;
 using ImageGenerator.McpServer.Services;
 using ImageGenerator.McpServer.Telemetry;
 using ImageGenerator.McpServer.Tools;
@@ -21,7 +23,7 @@ public static class ApplicationExtensions
     private const string HealthEndpointPath = "/health";
     private const string McpEndpointPath = "/mcp";
 
-    // MCP SDKが公開する診断ソース (ActivitySource / Meter)
+    // Diagnostics source (ActivitySource / Meter) exposed by the MCP SDK
     private const string McpDiagnosticsSourceName = "Experimental.ModelContextProtocol";
 
     private const string ServerName = "image-generator";
@@ -31,7 +33,8 @@ public static class ApplicationExtensions
         "The model renders 1024x1024, 1024x1536 or 1536x1024 images; pass width/height to generate_image or edit_image to get the final asset size (the server picks the closest aspect ratio, crops and resizes). " +
         "Generation takes 30 seconds to several minutes per image. " +
         "Input images and output paths are file paths on the server machine; use absolute paths for project assets and overwrite=true to replace existing files. " +
-        "Results are saved to disk and the response contains the saved paths, image sizes and token usage.";
+        "Results are saved to disk and the response contains the saved paths, image sizes and token usage. " +
+        "Use resize_image, crop_image, trim_image, convert_image, make_transparent and export_image_sizes to post-process existing files, list_images to find files in the output directory, and the prompts (app_icon, avatar, product_item, poster, banner, hero_visual, onboarding, scene) as starting points for prompts.";
 
     //--------------------------------------------------------------------------------
     // System
@@ -200,7 +203,10 @@ public static class ApplicationExtensions
             })
             .WithHttpTransport()
             .WithTools<GenerationTools>()
-            .WithTools<ImageTools>();
+            .WithTools<ImageTools>()
+            .WithPrompts([typeof(AssetPrompts)])
+            .WithListResourcesHandler(GeneratedImageResources.ListAsync)
+            .WithReadResourceHandler(GeneratedImageResources.ReadAsync);
 
         return builder;
     }
@@ -223,7 +229,7 @@ public static class ApplicationExtensions
         // Foundry
         builder.Services.AddHttpClient(ImageGenerationService.HttpClientName, static client =>
         {
-            // タイムアウトはリクエストごとにCancellationTokenで制御する
+            // Timeouts are controlled per request with a CancellationToken
             client.Timeout = Timeout.InfiniteTimeSpan;
         });
 

@@ -4,7 +4,7 @@ using ImageGenerator.McpServer.Errors;
 
 using SkiaSharp;
 
-// ツール引数の検証と正規化
+// Validation and normalization of tool arguments
 public static class ImageParameters
 {
     public const string InputDescription = "Image file path (png, jpg or webp) on the server machine. Relative paths resolve under the server output directory.";
@@ -91,7 +91,7 @@ public static class ImageParameters
             : throw new AppException(AppErrorCode.InvalidParameter, $"{name} must be a color like #RRGGBB, #AARRGGBB or transparent.");
     }
 
-    // "16:9" / "16/9" / "1.5" を比率 (幅 / 高さ) に変換する
+    // Converts "16:9", "16/9" or "1.5" to a width/height ratio
     public static double ParseAspect(string value)
     {
         var text = value.Trim();

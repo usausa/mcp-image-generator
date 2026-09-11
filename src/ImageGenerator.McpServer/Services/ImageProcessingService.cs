@@ -45,11 +45,11 @@ public sealed class ImageProcessingService
     // Resize
     //--------------------------------------------------------------------------------
 
-    // 生成画像を最終サイズへ合わせる
+    // Fits a generated image to the final asset size
     public byte[] Fit(ReadOnlyMemory<byte> source, int? width, int? height, FitMode fit, string format, int quality) =>
         Resize(source, width, height, null, fit, null, format, quality);
 
-    // widthとheightの片方のみ指定時は比率を維持する。scale指定時は倍率で拡大縮小する
+    // Keeps the aspect ratio when only width or height is given; scale multiplies the source size
     public byte[] Resize(ReadOnlyMemory<byte> source, int? width, int? height, double? scale, FitMode fit, SKColor? background, string format, int quality)
     {
         using var image = Decode(source);
@@ -154,7 +154,7 @@ public sealed class ImageProcessingService
         return Render(image, layout, ResolveBackground(null, format), format, quality);
     }
 
-    // 指定比率で画像に内接する最大の矩形を、基準位置に合わせて求める
+    // Computes the largest rectangle with the given aspect ratio inside the image, positioned by the anchor
     public static SKRectI ComputeAspectRect(int width, int height, double aspect, CropAnchor anchor)
     {
         int rectWidth;
@@ -191,7 +191,7 @@ public sealed class ImageProcessingService
     // Trim
     //--------------------------------------------------------------------------------
 
-    // 透過または背景色の余白を除去する。colorがnullのときは四隅から背景を判定する
+    // Removes transparent or solid-color margins; the background is detected from the corners when color is null
     public byte[] Trim(ReadOnlyMemory<byte> source, SKColor? color, int tolerance, int padding, string format, int quality)
     {
         using var image = Decode(source);
@@ -200,7 +200,7 @@ public sealed class ImageProcessingService
         var background = color ?? DetectBackground(bitmap, preferTransparent: true);
         var bounds = FindContentBounds(bitmap, background, tolerance);
 
-        // 全面が背景の場合は何もしない
+        // Keep the whole image when everything matches the background
         var rect = bounds ?? new SKRectI(0, 0, image.Width, image.Height);
         var canvasWidth = rect.Width + (padding * 2);
         var canvasHeight = rect.Height + (padding * 2);
@@ -276,7 +276,7 @@ public sealed class ImageProcessingService
     // Transparent
     //--------------------------------------------------------------------------------
 
-    // 指定色 (nullのときは四隅から判定した背景色) に近いピクセルを透過にする
+    // Makes pixels close to the given color (or the corner background when null) transparent
     public static byte[] MakeTransparent(ReadOnlyMemory<byte> source, SKColor? color, int tolerance, int feather, string format, int quality)
     {
         using var image = Decode(source);
@@ -325,7 +325,7 @@ public sealed class ImageProcessingService
         return bitmap;
     }
 
-    // 四隅の色から背景を推定する。透過を優先する場合、四隅のいずれかが透明なら透過背景とみなす
+    // Estimates the background from the corners; with preferTransparent, any transparent corner means a transparent background
     private static SKColor DetectBackground(SKBitmap bitmap, bool preferTransparent)
     {
         var corners = new[]
@@ -382,7 +382,7 @@ public sealed class ImageProcessingService
     private static SKImage Decode(ReadOnlyMemory<byte> data) =>
         SKImage.FromEncodedData(data.Span) ?? throw new AppException(AppErrorCode.ImageDecodeFailed, "The image could not be decoded.");
 
-    // JPEGは透過を保持できないため白で塗る
+    // JPEG cannot keep transparency, so transparent backgrounds become white
     private static SKColor ResolveBackground(SKColor? requested, string format)
     {
         var background = requested ?? (ImageFormats.SupportsTransparency(format) ? SKColors.Transparent : SKColors.White);
@@ -408,7 +408,7 @@ public sealed class ImageProcessingService
         _ => SKEncodedImageFormat.Png
     };
 
-    // 先頭のマジックナンバーで形式を判定する
+    // Detects the format from the magic number
     private static string DetectFormat(ReadOnlySpan<byte> data)
     {
         if (data.Length >= 8 && data[..8].SequenceEqual(PngSignature))

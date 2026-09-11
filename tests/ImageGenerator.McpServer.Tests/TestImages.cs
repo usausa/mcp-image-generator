@@ -8,7 +8,7 @@ public static class TestImages
 
     public static readonly SKColor Content = SKColors.Orange;
 
-    // 中央半分の領域にオレンジの矩形を置いた画像。背景は青または透過
+    // Image with an orange rectangle over the center half; the background is blue or transparent
     public static byte[] CreatePng(int width, int height, bool transparent)
     {
         using var surface = SKSurface.Create(new SKImageInfo(width, height, SKColorType.Rgba8888, SKAlphaType.Premul));

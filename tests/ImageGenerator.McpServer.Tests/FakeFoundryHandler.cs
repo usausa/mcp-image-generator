@@ -5,7 +5,7 @@ using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 
-// Foundry Images APIの偽物。受信したリクエストを記録し、固定の画像とusageを返す
+// Fake Foundry Images API: records requests and returns a fixed image with usage
 public sealed class FakeFoundryHandler : HttpMessageHandler
 {
     public Collection<FoundryRequest> Requests { get; } = [];
@@ -54,7 +54,7 @@ public sealed partial record FoundryRequest(Uri Uri, string? ApiKey, string? Med
 {
     public bool IsJson => MediaType == "application/json";
 
-    // JSON本文またはmultipartのテキストフィールドを取り出す
+    // Reads a field from the JSON body or a multipart text part
     public string? GetField(string name)
     {
         if (IsJson)

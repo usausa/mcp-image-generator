@@ -32,11 +32,17 @@ public static class ToolResults
     public static CallToolResult Error(string message) =>
         new() { IsError = true, Content = [new TextContentBlock { Text = message }] };
 
-    // DataはBase64文字列のUTF-8バイト列
-    public static ImageContentBlock Image(ReadOnlyMemory<byte> data, string format)
+    public static ImageContentBlock Image(ReadOnlyMemory<byte> data, string format) =>
+        new() { Data = EncodeBase64(data), MimeType = ImageFormats.GetContentType(format) };
+
+    public static ResourceLinkBlock ResourceLink(string locator, string name, string format, long size) =>
+        new() { Uri = locator, Name = name, MimeType = ImageFormats.GetContentType(format), Size = size };
+
+    // The SDK expects the UTF-8 bytes of the base64 string
+    public static ReadOnlyMemory<byte> EncodeBase64(ReadOnlyMemory<byte> data)
     {
         var buffer = new byte[Base64.GetMaxEncodedToUtf8Length(data.Length)];
         Base64.EncodeToUtf8(data.Span, buffer, out _, out var written);
-        return new ImageContentBlock { Data = buffer.AsMemory(0, written), MimeType = ImageFormats.GetContentType(format) };
+        return buffer.AsMemory(0, written);
     }
 }

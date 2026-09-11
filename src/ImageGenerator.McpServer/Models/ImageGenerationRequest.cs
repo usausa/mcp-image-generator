@@ -8,7 +8,7 @@ public sealed record ImageGenerationRequest
 
     public required string Quality { get; init; }
 
-    // auto / transparent / opaque。autoのときは送信しない
+    // auto / transparent / opaque; auto is not sent to the API
     public required string Background { get; init; }
 
     public required string OutputFormat { get; init; }

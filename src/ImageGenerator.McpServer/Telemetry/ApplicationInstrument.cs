@@ -41,7 +41,7 @@ public sealed class ApplicationInstrument : IDisposable
     private static long ObserveApplicationUptime() =>
         (long)(DateTime.Now - Process.GetCurrentProcess().StartTime).TotalSeconds;
 
-    // ツール呼び出し単位の回数と処理時間。statusはsuccess/error/cancelled
+    // Count and duration per tool call; status is success/error/cancelled
     public void RecordToolCall(string tool, string status, TimeSpan duration)
     {
         toolRequests.Add(1, new("tool", tool), new("status", status));
@@ -51,7 +51,7 @@ public sealed class ApplicationInstrument : IDisposable
     public void AddGeneratedImages(string tool, int count) =>
         generatedImages.Add(count, new KeyValuePair<string, object?>("tool", tool));
 
-    // Foundry応答のusageから集計する。typeはinput/output等
+    // Aggregated from the usage in the Foundry response; type is input/output etc.
     public void AddGenerationTokens(string tool, string type, long tokens) =>
         generationTokens.Add(tokens, new("tool", tool), new("type", type));
 

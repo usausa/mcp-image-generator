@@ -1,6 +1,6 @@
 namespace ImageGenerator.McpServer;
 
-// テストプロセス内でサーバーを1つだけ起動し、全テストクラスで共有する
+// Start a single server per test process and share it across test classes
 [CollectionDefinition(Name)]
 public sealed class ServerCollectionDefinition : ICollectionFixture<TestApplicationFactory>
 {

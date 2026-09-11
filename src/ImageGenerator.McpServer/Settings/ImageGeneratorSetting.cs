@@ -19,7 +19,7 @@ public sealed class ImageGeneratorSetting
     [Required]
     public string OutputPath { get; set; } = default!;
 
-    // 空の場合は任意のパスを許可する (ローカル利用向け)
+    // Empty lists allow any path (intended for local use)
     public List<string> InputRoots { get; } = [];
 
     public List<string> OutputRoots { get; } = [];

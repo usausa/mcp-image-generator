@@ -33,10 +33,10 @@ public sealed class McpToolTests
         // Assert
         var names = tools.Select(static x => x.Name).ToArray();
         Assert.Equal(
-            [ToolNames.ConvertImage, ToolNames.CropImage, ToolNames.EditImage, ToolNames.GenerateImage, ToolNames.GetImageInfo, ToolNames.MakeTransparent, ToolNames.ResizeImage, ToolNames.TrimImage],
+            [ToolNames.ConvertImage, ToolNames.CropImage, ToolNames.EditImage, ToolNames.ExportImageSizes, ToolNames.GenerateImage, ToolNames.GetImageInfo, ToolNames.ListImages, ToolNames.MakeTransparent, ToolNames.ResizeImage, ToolNames.TrimImage],
             names.Order(StringComparer.Ordinal));
 
-        // DIで解決されるパラメーターやCancellationTokenはスキーマに含まれない
+        // Parameters resolved from DI and CancellationToken are not part of the schema
         var generate = tools.First(static x => x.Name == ToolNames.GenerateImage);
         var properties = generate.JsonSchema.GetProperty("properties").EnumerateObject().Select(static x => x.Name).ToArray();
         Assert.Contains("prompt", properties);
@@ -128,7 +128,7 @@ public sealed class McpToolTests
         Assert.Equal("image/jpeg", imageBlock.MimeType);
         Assert.Equal((300, 150), TestImages.GetSize(imageBlock.DecodedData.ToArray()));
 
-        // 2:1の最終サイズには横長のレンダリングサイズが選ばれ、拡張子からjpegが決まる
+        // A 2:1 final size selects the landscape render size, and jpeg comes from the extension
         var request = factory.Foundry.Requests.Last();
         Assert.Equal("1536x1024", request.GetField("size"));
         Assert.Equal("jpeg", request.GetField("output_format"));
@@ -154,7 +154,7 @@ public sealed class McpToolTests
         // Assert
         Assert.True(result.IsError);
         Assert.Contains("overwrite=true", GetText(result), StringComparison.Ordinal);
-        // 保存先の検証はFoundry呼び出しの前に行われる
+        // The output path is validated before Foundry is called
         Assert.Equal(requestCount, factory.Foundry.Requests.Count);
     }
 

@@ -25,7 +25,7 @@ public sealed class ImagePathService
         this.timeProvider = timeProvider;
         OutputRoot = NormalizeRoot(setting.OutputPath);
         inputRoots = setting.InputRoots.Select(NormalizeRoot).ToArray();
-        // 既定の出力先は常に許可する
+        // The default output directory is always writable
         outputRoots = setting.OutputRoots.Count > 0 ? setting.OutputRoots.Select(NormalizeRoot).Append(OutputRoot).ToArray() : [];
     }
 
@@ -33,7 +33,7 @@ public sealed class ImagePathService
     // Input
     //--------------------------------------------------------------------------------
 
-    // 相対パスは出力ディレクトリ基準 (生成済みファイルをファイル名で参照できるようにする)
+    // Relative paths resolve under the output directory so generated files can be referenced by name
     public string ResolveInputPath(string path, string parameterName)
     {
         if (String.IsNullOrWhiteSpace(path))
@@ -60,11 +60,35 @@ public sealed class ImagePathService
         return fullPath;
     }
 
+    public string ResolveInputDirectory(string? path)
+    {
+        if (String.IsNullOrWhiteSpace(path))
+        {
+            return OutputRoot;
+        }
+
+        var fullPath = Path.GetFullPath(Path.Combine(OutputRoot, path.Trim()));
+        if (!IsUnderRoots(fullPath, inputRoots))
+        {
+            throw new AppException(AppErrorCode.InputNotAllowed, $"Reading '{path}' is not allowed. Allowed directories: {String.Join(", ", inputRoots)}");
+        }
+
+        if (!Directory.Exists(fullPath))
+        {
+            throw new AppException(AppErrorCode.InputNotFound, $"Directory not found: {path}");
+        }
+
+        return fullPath;
+    }
+
+    public static bool IsSupportedImageFile(string path) =>
+        ImageFormats.FromExtension(Path.GetExtension(path)) is not null;
+
     //--------------------------------------------------------------------------------
     // Output
     //--------------------------------------------------------------------------------
 
-    // 画像拡張子を持つパスはファイル、それ以外はディレクトリとして扱う
+    // A path with an image extension is a file, anything else is a directory
     public OutputTarget ResolveOutput(string? outputPath, string? explicitFormat, string defaultFormat)
     {
         if (String.IsNullOrWhiteSpace(outputPath))
@@ -73,11 +97,7 @@ public sealed class ImagePathService
         }
 
         var text = outputPath.Trim();
-        var fullPath = Path.GetFullPath(Path.Combine(OutputRoot, text));
-        if (!IsUnderRoots(fullPath, outputRoots))
-        {
-            throw new AppException(AppErrorCode.OutputNotAllowed, $"Writing to '{outputPath}' is not allowed. Allowed directories: {String.Join(", ", outputRoots)}");
-        }
+        var fullPath = ResolveOutputFullPath(text, outputPath);
 
         var endsWithSeparator = text.EndsWith(Path.DirectorySeparatorChar) || text.EndsWith(Path.AltDirectorySeparatorChar);
         var extensionFormat = endsWithSeparator ? null : ImageFormats.FromExtension(Path.GetExtension(fullPath));
@@ -94,7 +114,17 @@ public sealed class ImagePathService
         return new OutputTarget(fullPath, false, extensionFormat);
     }
 
-    // 生成前に保存先を確定し、上書き禁止の場合は既存ファイルを事前に検出する
+    public string ResolveOutputDirectory(string? outputPath)
+    {
+        if (String.IsNullOrWhiteSpace(outputPath))
+        {
+            return OutputRoot;
+        }
+
+        return ResolveOutputFullPath(outputPath.Trim(), outputPath);
+    }
+
+    // Decide the file names before calling Foundry so existing files are detected up front
     public IReadOnlyList<string> CreateFilePaths(OutputTarget target, string prefix, int count, bool overwrite)
     {
         var paths = new List<string>(count);
@@ -123,16 +153,23 @@ public sealed class ImagePathService
             }
         }
 
-        if (!overwrite)
-        {
-            var existing = paths.FirstOrDefault(File.Exists);
-            if (existing is not null)
-            {
-                throw new AppException(AppErrorCode.OutputExists, $"File already exists: {existing}. Pass overwrite=true to replace it.");
-            }
-        }
+        EnsureWritable(paths, overwrite);
 
         return paths;
+    }
+
+    public static void EnsureWritable(IEnumerable<string> paths, bool overwrite)
+    {
+        if (overwrite)
+        {
+            return;
+        }
+
+        var existing = paths.FirstOrDefault(File.Exists);
+        if (existing is not null)
+        {
+            throw new AppException(AppErrorCode.OutputExists, $"File already exists: {existing}. Pass overwrite=true to replace it.");
+        }
     }
 
     public static async Task WriteAsync(string path, ReadOnlyMemory<byte> data, bool overwrite, CancellationToken cancellationToken)
@@ -156,9 +193,27 @@ public sealed class ImagePathService
         }
     }
 
+    // Files directly in the output directory are exposed as MCP resources
+    public bool IsInOutputRoot(string path)
+    {
+        var directory = Path.GetDirectoryName(Path.GetFullPath(path));
+        return (directory is not null) && directory.Equals(OutputRoot, PathComparison);
+    }
+
     //--------------------------------------------------------------------------------
     // Helper
     //--------------------------------------------------------------------------------
+
+    private string ResolveOutputFullPath(string text, string original)
+    {
+        var fullPath = Path.GetFullPath(Path.Combine(OutputRoot, text));
+        if (!IsUnderRoots(fullPath, outputRoots))
+        {
+            throw new AppException(AppErrorCode.OutputNotAllowed, $"Writing to '{original}' is not allowed. Allowed directories: {String.Join(", ", outputRoots)}");
+        }
+
+        return fullPath;
+    }
 
     private static string NormalizeRoot(string path) =>
         Path.TrimEndingDirectorySeparator(Path.GetFullPath(path));

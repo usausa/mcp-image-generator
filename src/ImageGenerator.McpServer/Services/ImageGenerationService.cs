@@ -56,7 +56,7 @@ public sealed class ImageGenerationService : IDisposable
 
         logger.InfoGenerationStarted(tool, request.Size, request.Quality, request.Background, request.OutputFormat, request.ReferenceImages.Count, request.MaskImage is not null);
 
-        // 上流の同時実行数を制限する。空きがなければ待機する
+        // Limit concurrent upstream requests; wait when no slot is free
         if (semaphore.CurrentCount == 0)
         {
             onStatus?.Invoke("Waiting for a free generation slot...");
@@ -85,7 +85,7 @@ public sealed class ImageGenerationService : IDisposable
 
     private async Task<(byte[] Data, ImageUsage? Usage)> SendAsync(ImageGenerationRequest request, Action<string>? onStatus, CancellationToken cancellationToken)
     {
-        // generationsはJSONのみ受け付け、editsは参照画像を含むためmultipartで送る
+        // generations accepts JSON only; edits carries reference images and uses multipart
         using HttpContent content = request.IsEdit
             ? await CreateMultipartContentAsync(request, cancellationToken)
             : CreateJsonContent(request);
@@ -283,7 +283,7 @@ public sealed class ImageGenerationService : IDisposable
             }
             catch (OperationCanceledException ex) when (!cancellationToken.IsCancellationRequested)
             {
-                // 呼び出し元のキャンセルではなく、1リクエストあたりのタイムアウト
+                // Per-request timeout rather than a cancellation by the caller
                 if (attempt > setting.MaxRetries)
                 {
                     throw new AppException(AppErrorCode.GenerationTimeout, "The request to Foundry timed out.", ex);
@@ -316,7 +316,7 @@ public sealed class ImageGenerationService : IDisposable
     // Error
     //--------------------------------------------------------------------------------
 
-    // ツール結果にはステータスとAPIのエラー要約のみ含める (本文全体はログへ)
+    // Tool results carry only the status and a summary of the API error (the full body goes to the log)
     private static AppException CreateRequestException(HttpResponseMessage response, string responseBody)
     {
         var message = $"Image generation request failed. Status={(int)response.StatusCode} {response.StatusCode}.";

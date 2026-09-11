@@ -8,7 +8,7 @@ public static class ImageFormats
 
     public static readonly string[] All = [Png, Jpeg, Webp];
 
-    // ユーザー入力の表記ゆれ (jpg / 大文字) を正規化する。未対応はnull
+    // Normalizes user input such as jpg or upper case; returns null for unsupported formats
     public static string? Normalize(string? value)
     {
         if (String.IsNullOrWhiteSpace(value))

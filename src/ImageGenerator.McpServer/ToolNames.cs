@@ -17,4 +17,8 @@ public static class ToolNames
     public const string ConvertImage = "convert_image";
 
     public const string MakeTransparent = "make_transparent";
+
+    public const string ExportImageSizes = "export_image_sizes";
+
+    public const string ListImages = "list_images";
 }

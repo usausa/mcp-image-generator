@@ -1,74 +1,87 @@
 # mcp-image-generator
 
-MCP (Model Context Protocol) server that creates application assets (icons, banners, avatars, illustrations) with Microsoft Foundry image models (`gpt-image-2`) and post-processes them with SkiaSharp (crop to aspect ratio, resize, trim, convert, make transparent).
+MCP (Model Context Protocol) server that creates application assets — icons, avatars, banners, posters, illustrations — with the Microsoft Foundry image model (`gpt-image-2`) and post-processes them with SkiaSharp (crop to aspect ratio, resize, trim, convert, make transparent, export icon sets).
 
-- Specification: [docs/Specification.md](docs/Specification.md)
-- Solution: `ImageGenerator.McpServer.slnx`
+Point Claude Code, VS Code or any MCP client at the server and ask for assets in natural language; the files land directly in your project.
 
-## Tools
+## ✨ Features
 
-| Tool | Description |
-|------|-------------|
-| `generate_image` | Generate an image from a prompt. `width` / `height` crop and resize the render to the final asset size; `outputPath` saves it directly into your project. |
-| `edit_image` | Generate from reference images (and an optional mask), e.g. keep a character identity in a new style. |
-| `get_image_info` | Width, height, format, alpha and file size of an image file. |
-| `resize_image` | Resize to a size or scale factor (`fit`: cover / contain / pad / stretch). |
-| `crop_image` | Crop by rectangle or by aspect ratio with an anchor. |
-| `trim_image` | Remove transparent or solid-color margins, optionally add padding. |
-| `convert_image` | Convert between png, jpeg and webp. |
-| `make_transparent` | Make a background color transparent (png / webp output). |
+- **Generate** images from a prompt, or from reference images (`images/edits`) to keep a character or style.
+- **Final size in one call** — the model renders 1024x1024 / 1024x1536 / 1536x1024; pass `width` / `height` and the server picks the closest aspect ratio, crops and resizes.
+- **Post-process existing files** — resize, crop, trim margins, convert format, make a background transparent, export favicon / PWA / Android / iOS / Windows icon sets (with `.ico`).
+- **Prompt templates** for common asset types (app icon, avatar, product, poster, banner, hero visual, onboarding, scene).
+- **Resources** — generated files in the output directory are exposed as `generated-image://` resources.
+- **Operations ready** — runs as a Windows Service or systemd unit, Serilog file logs, OpenTelemetry metrics (Prometheus / OTLP) including token usage.
 
-All file parameters are paths on the server machine. Pass `overwrite=true` to replace an existing file.
+## 🚀 Getting started
 
-## Configuration
+1. Unpack the published files into a folder, e.g. `C:\Tools\ImageGenerator.McpServer\`.
+2. Set the Foundry connection (see Configuration below). The API key should come from an environment variable rather than a file:
 
-Settings live in `src/ImageGenerator.McpServer/appsettings.json` (`ImageGenerator` / `ImageProcessing` sections). The Foundry endpoint and API key are required and must not be committed. For development use User Secrets:
+   ```
+   setx ImageGenerator__Endpoint "https://<resource>.services.ai.azure.com/"
+   setx ImageGenerator__ApiKey "<api-key>"
+   ```
+
+3. Start the server:
+
+   ```
+   ImageGenerator.McpServer.exe
+   ```
+
+   - MCP endpoint: `http://localhost:12080/mcp`
+   - Health check: `http://localhost:12080/health`
+   - Metrics: `http://localhost:9464/metrics`
+
+4. Connect a client (see Connecting clients below).
+
+### Run as a service
+
+Windows:
 
 ```
-dotnet user-secrets set ImageGenerator:Endpoint https://<resource>.services.ai.azure.com/ --project src/ImageGenerator.McpServer
-dotnet user-secrets set ImageGenerator:ApiKey <api-key> --project src/ImageGenerator.McpServer
+sc create ImageGeneratorMcp binPath= "C:\Tools\ImageGenerator.McpServer\ImageGenerator.McpServer.exe" start= auto
+sc start ImageGeneratorMcp
 ```
 
-For services use environment variables (`ImageGenerator__Endpoint`, `ImageGenerator__ApiKey`) or an `appsettings.Production.json` next to the binaries.
+Linux (systemd, `Type=notify`):
+
+```
+[Service]
+ExecStart=/opt/image-generator/ImageGenerator.McpServer
+WorkingDirectory=/opt/image-generator
+Environment=ImageGenerator__Endpoint=https://<resource>.services.ai.azure.com/
+Environment=ImageGenerator__ApiKey=<api-key>
+Type=notify
+```
+
+Logs are written to `../log/ImageGenerator.McpServer_<date>.log` relative to the executable.
+
+## ⚙️ Configuration
+
+Settings are read from `appsettings.json` next to the executable and can be overridden with environment variables (`Section__Key`).
 
 | Setting | Default | Description |
 |---------|---------|-------------|
 | `http_ports` | `12080` | HTTP port |
-| `ImageGenerator:DeploymentName` | `gpt-image-2` | Foundry deployment name |
+| `ImageGenerator:Endpoint` | *(required)* | Foundry resource endpoint, e.g. `https://<resource>.services.ai.azure.com/` |
+| `ImageGenerator:DeploymentName` | `gpt-image-2` | Image model deployment name |
+| `ImageGenerator:ApiKey` | *(required)* | Foundry API key (prefer the environment variable `ImageGenerator__ApiKey`) |
+| `ImageGenerator:ApiVersion` | `2025-04-01-preview` | Images API version |
 | `ImageGenerator:OutputPath` | `output` | Default output directory (relative to the executable) |
-| `ImageGenerator:InputRoots` / `OutputRoots` | `[]` | Allowed directories for input / output paths (empty = any) |
+| `ImageGenerator:InputRoots` / `OutputRoots` | `[]` | Directories the tools may read from / write to (empty = anywhere) |
+| `ImageGenerator:MaxRetries` | `5` | Retries on 429 / 5xx / timeouts |
+| `ImageGenerator:RequestTimeoutMinutes` | `10` | Timeout per Foundry request |
 | `ImageGenerator:MaxConcurrency` | `2` | Concurrent Foundry requests |
+| `ImageGenerator:MaxCount` | `4` | Maximum images per call |
 | `ImageGenerator:RetentionDays` | `7` | Days to keep files in the default output directory (`0` disables) |
 | `ImageGenerator:Defaults` | `1024x1024` / `high` / `png` / `80` | Default size, quality, format and compression |
 | `ImageProcessing:MaxDimension` | `4096` | Maximum output width / height |
 | `ImageProcessing:JpegQuality` / `WebpQuality` | `80` | Default encoding quality |
 | `Prometheus:Uri` | `http://0.0.0.0:9464` | Prometheus metrics listener (empty disables) |
+| `OTEL_EXPORTER_OTLP_ENDPOINT` | *(unset)* | Environment variable; when set, logs, metrics and traces are also exported via OTLP |
 
-## Build
-
-```
-dotnet build ImageGenerator.McpServer.slnx
-```
-
-## Test
-
-Tests use Microsoft.Testing.Platform. Run the test project directly (or use Visual Studio Test Explorer):
-
-```
-dotnet run --project tests/ImageGenerator.McpServer.Tests
-```
-
-## Run
-
-```
-dotnet run --project src/ImageGenerator.McpServer
-```
-
-- MCP endpoint: `http://localhost:12080/mcp`
-- Health check: `http://localhost:12080/health`
-- Prometheus metrics: `http://localhost:9464/metrics`
-
-## Client setup
+## 🔌 Connecting clients
 
 Claude Code:
 
@@ -89,10 +102,62 @@ VS Code (`.vscode/mcp.json`):
 }
 ```
 
-## Manual verification (uses the real Foundry deployment and incurs cost)
+Any other MCP client: Streamable HTTP transport, URL `http://<host>:12080/mcp`, no authentication (run it on a trusted network).
 
-1. Configure the endpoint and API key (see Configuration) and start the server.
-2. From the MCP client, call `generate_image` with a prompt, `quality=low`, `width=256`, `height=256` and an `outputPath` in a scratch directory. The result lists the saved path, size and token usage (about 20 seconds per image).
-3. Call `edit_image` with `images=[<path of the generated file>]` to confirm the `images/edits` path.
-4. Call `trim_image` or `resize_image` on the generated file to confirm the SkiaSharp tools.
-5. Check `http://localhost:9464/metrics` for `mcp_tool_requests_total` and `image_generation_tokens_total`.
+## 🧰 Tools
+
+All file parameters are paths on the machine running the server (use absolute paths for project files). Relative paths resolve under the output directory. Pass `overwrite=true` to replace an existing file.
+
+| Tool | What it does | Key parameters |
+|------|--------------|----------------|
+| `generate_image` | Generate from a prompt and save | `prompt`, `quality`, `background`, `width`, `height`, `fit`, `outputPath`, `count` |
+| `edit_image` | Generate from reference images (and an optional mask) | `prompt`, `images[]`, `mask`, plus the `generate_image` options |
+| `get_image_info` | Width, height, format, alpha, file size | `input` |
+| `list_images` | List images in a directory, newest first | `directory`, `recursive`, `limit` |
+| `resize_image` | Resize to a size or scale factor | `width`, `height`, `scale`, `fit` (cover / contain / pad / stretch), `background` |
+| `crop_image` | Crop by rectangle or aspect ratio + anchor | `x`, `y`, `width`, `height` or `aspect`, `anchor` |
+| `trim_image` | Remove transparent or solid-color margins | `color`, `tolerance`, `padding` |
+| `convert_image` | Convert between png, jpeg and webp | `outputFormat`, `quality` |
+| `make_transparent` | Make a background color transparent | `color`, `tolerance`, `feather` |
+| `export_image_sizes` | Export an icon to a size set, optionally with `.ico` | `preset` (favicon / pwa / android / ios / windows / scales) or `sizes[]`, `name`, `ico` |
+
+Results are JSON (saved path, size, format, bytes and, for generation, token usage). Add `includeImage=true` to also receive the image data.
+
+### Examples
+
+- *"Create a 1600x900 hero image for the streaming page: a girl in a blue and gold outfit on a rooftop at dusk, anime style, right half empty for the title. Save it as `Resources/Images/Stream/stream_hero.jpg`."*
+  → `generate_image(prompt, quality="high", width=1600, height=900, outputPath=".../stream_hero.jpg", overwrite=true)`
+- *"Make a voxel avatar of the character in `usa7_face.jpg`, 256x256."*
+  → `edit_image(prompt, images=[".../usa7_face.jpg"], width=256, height=256, outputPath=".../avatar_person04.jpg")`
+- *"Turn `icon.png` into a favicon set."*
+  → `export_image_sizes(input="icon.png", preset="favicon", outputPath=".../wwwroot")`
+
+## 💬 Prompts
+
+Prompt templates return a ready-to-use prompt plus the suggested tool arguments. Each takes `subject` and optional `style` (`anime`, `anime-cinematic`, `flat-vector`, `watercolor-cat`, `pixel`, `voxel`) and `palette`.
+
+`app_icon` · `avatar` · `product_item` · `poster` · `banner` · `hero_visual` · `onboarding` · `scene`
+
+## 🗂️ Resources
+
+Files in the default output directory are listed as MCP resources with URIs like `generated-image://generate-20260911-120000-01-a1b2c3.png` and can be read as binary content. Tool results include a resource link when the saved file is in that directory.
+
+## 📊 Metrics
+
+Prometheus text format is served at `http://localhost:9464/metrics` (set `Prometheus:Uri` to change or disable it). Setting `OTEL_EXPORTER_OTLP_ENDPOINT` additionally exports logs, metrics and traces via OTLP.
+
+| Metric | Type | Labels | Meaning |
+|--------|------|--------|---------|
+| `mcp_tool_requests_total` | counter | `tool`, `status` (success / error / cancelled) | Tool calls |
+| `mcp_tool_duration_seconds` | histogram | `tool`, `status` | Tool call duration |
+| `image_generation_images_total` | counter | `tool` | Generated images |
+| `image_generation_tokens_total` | counter | `tool`, `type` (input / output / input_text / input_image) | Tokens reported by Foundry |
+| `image_generation_retries_total` | counter | `tool`, `status_code` | Retries against Foundry (`0` = timeout) |
+| `mcp_server_operation_duration_seconds` | histogram | `mcp.method.name`, ... | MCP request handling (from the SDK) |
+| `application_uptime_seconds_total` | counter | | Uptime |
+
+ASP.NET Core, HttpClient and .NET runtime instrumentation are exported as well.
+
+## 📄 License
+
+MIT

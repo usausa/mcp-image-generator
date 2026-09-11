@@ -3,6 +3,7 @@ namespace ImageGenerator.McpServer.Tools;
 using System.Diagnostics;
 
 using ImageGenerator.McpServer.Errors;
+using ImageGenerator.McpServer.Resources;
 using ImageGenerator.McpServer.Services;
 using ImageGenerator.McpServer.Telemetry;
 
@@ -215,7 +216,21 @@ public sealed class GenerationTools
             activity?.SetTag("image.generation.tokens.output", usage?.OutputTokens);
 
             var value = new GenerationToolResult(saved.Select(static x => x.Image).ToArray(), usage, Math.Round(sw.Elapsed.TotalSeconds, 1));
-            return ToolResults.Success(value, arguments.IncludeImage ? saved.Select(x => ToolResults.Image(x.Data, plan.Format)) : null);
+            var content = new List<ContentBlock>();
+            foreach (var (image, imageData) in saved)
+            {
+                if (GeneratedImageResources.CreateLink(paths, image.Path, plan.Format, image.Bytes) is { } link)
+                {
+                    content.Add(link);
+                }
+
+                if (arguments.IncludeImage)
+                {
+                    content.Add(ToolResults.Image(imageData, plan.Format));
+                }
+            }
+
+            return ToolResults.Success(value, content);
         }
         catch (AppException ex)
         {
@@ -293,7 +308,7 @@ public sealed class GenerationTools
     // Plan
     //--------------------------------------------------------------------------------
 
-    // 入力を検証・正規化し、Foundryを呼ぶ前に保存先まで確定する
+    // Validate and normalize the input and decide the output files before calling Foundry
     private GenerationPlan CreatePlan(string tool, GenerationArguments arguments)
     {
         var prompt = arguments.Prompt?.Trim();
@@ -384,7 +399,7 @@ public sealed class GenerationTools
             return defaultSize;
         }
 
-        // 最終サイズに最も近いアスペクト比のレンダリングサイズを選ぶ
+        // Pick the render size whose aspect ratio is closest to the final size
         var target = Math.Log((double)width.Value / height.Value);
         return Sizes
             .Select(static x => (Size: x, Ratio: Math.Log(AspectRatio(x))))

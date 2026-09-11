@@ -2,7 +2,7 @@ namespace ImageGenerator.McpServer.Workers;
 
 using ImageGenerator.McpServer.Services;
 
-// 既定の出力ディレクトリ内の古いファイルを定期的に削除する。outputPathで明示指定された保存先は対象外
+// Periodically deletes old files in the default output directory. Files saved to an explicit outputPath are not affected
 public sealed class FileRetentionWorker : BackgroundService
 {
     private static readonly TimeSpan Interval = TimeSpan.FromHours(1);

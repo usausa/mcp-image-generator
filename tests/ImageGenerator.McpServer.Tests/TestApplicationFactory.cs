@@ -26,7 +26,7 @@ public sealed class TestApplicationFactory : WebApplicationFactory<Program>
         builder.UseSetting("ImageGenerator:MaxRetries", "0");
         builder.UseSetting("ImageGenerator:RetentionDays", "0");
 
-        // Foundry呼び出しを偽の応答に差し替える
+        // Replace the Foundry HTTP handler with a fake
         builder.ConfigureTestServices(services =>
         {
             services.AddHttpClient(ImageGenerationService.HttpClientName).ConfigurePrimaryHttpMessageHandler(() => Foundry);

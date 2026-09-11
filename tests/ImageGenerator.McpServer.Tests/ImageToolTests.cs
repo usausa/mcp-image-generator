@@ -128,7 +128,7 @@ public sealed class ImageToolTests
         Assert.Equal(768, json.RootElement.GetProperty("width").GetInt32());
         Assert.Equal(384, json.RootElement.GetProperty("height").GetInt32());
 
-        // 元画像のオレンジ領域は y=128～383。上寄せなら下端付近はオレンジ、下寄せなら背景色になる
+        // The orange area spans y=128-383 in the source: a top anchor keeps it near the bottom edge, a bottom anchor shows the background
         var data = await File.ReadAllBytesAsync(outputPath, TestContext.Current.CancellationToken);
         var pixel = TestImages.GetPixel(data, 384, 380);
         Assert.Equal(expectContentNearBottom ? TestImages.Content : TestImages.Background, pixel);

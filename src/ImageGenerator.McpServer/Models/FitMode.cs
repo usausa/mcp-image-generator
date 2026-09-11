@@ -2,15 +2,15 @@ namespace ImageGenerator.McpServer.Models;
 
 public enum FitMode
 {
-    // 目標比率で中央を切り出してから目標サイズへ
+    // Center crop to the target aspect ratio, then scale to the target size
     Cover,
 
-    // 目標サイズに内接するよう縮小 (余白なし。サイズは目標以下)
+    // Scale to fit inside the target without padding (the result can be smaller)
     Contain,
 
-    // 内接させた上で余白を付けて目標サイズにする
+    // Scale to fit inside the target and pad to the exact size
     Pad,
 
-    // 比率を無視して目標サイズへ引き伸ばす (resize_imageのみ)
+    // Stretch to the target size ignoring the aspect ratio (resize_image only)
     Stretch
 }
