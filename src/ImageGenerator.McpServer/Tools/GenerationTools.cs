@@ -215,7 +215,7 @@ public sealed class GenerationTools
             activity?.SetTag("image.generation.tokens.input", usage?.InputTokens);
             activity?.SetTag("image.generation.tokens.output", usage?.OutputTokens);
 
-            var value = new GenerationToolResult(saved.Select(static x => x.Image).ToArray(), usage, Math.Round(sw.Elapsed.TotalSeconds, 1));
+            var value = new GenerateImageResponse(saved.Select(static x => x.Image).ToArray(), usage, Math.Round(sw.Elapsed.TotalSeconds, 1));
             var content = new List<ContentBlock>();
             foreach (var (image, imageData) in saved)
             {
@@ -471,6 +471,4 @@ public sealed class GenerationTools
 
         public required IReadOnlyList<string> OutputPaths { get; init; }
     }
-
-    private sealed record GenerationToolResult(IReadOnlyList<SavedImage> Images, ImageUsage? Usage, double ElapsedSeconds);
 }

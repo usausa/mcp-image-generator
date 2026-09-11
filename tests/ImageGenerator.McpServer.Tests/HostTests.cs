@@ -1,6 +1,5 @@
 namespace ImageGenerator.McpServer;
 
-using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.Options;
 
 [Collection(ServerCollectionDefinition.Name)]

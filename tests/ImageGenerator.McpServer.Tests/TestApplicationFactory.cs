@@ -33,13 +33,13 @@ public sealed class TestApplicationFactory : WebApplicationFactory<Program>
         });
     }
 
-    public async Task<McpClient> CreateMcpClientAsync(CancellationToken cancellationToken)
+    public Task<McpClient> CreateMcpClientAsync(CancellationToken cancellationToken)
     {
         var options = new HttpClientTransportOptions { Endpoint = new Uri(Server.BaseAddress, "mcp") };
 #pragma warning disable CA2000
         var transport = new HttpClientTransport(options, CreateClient());
 #pragma warning restore CA2000
-        return await McpClient.CreateAsync(transport, cancellationToken: cancellationToken);
+        return McpClient.CreateAsync(transport, cancellationToken: cancellationToken);
     }
 
     protected override void Dispose(bool disposing)

@@ -59,7 +59,7 @@ public static class GeneratedImageResources
 
     public static async ValueTask<ReadResourceResult> ReadAsync(RequestContext<ReadResourceRequestParams> context, CancellationToken cancellationToken)
     {
-        var uri = context.Params?.Uri;
+        var uri = context.Params.Uri;
         if (String.IsNullOrEmpty(uri) || !uri.StartsWith(UriPrefix, StringComparison.Ordinal))
         {
             throw new McpException($"Unknown resource: {uri}");

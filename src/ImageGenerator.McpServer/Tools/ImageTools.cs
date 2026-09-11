@@ -57,7 +57,7 @@ public sealed class ImageTools
             var path = paths.ResolveInputPath(input, "input");
             var data = await File.ReadAllBytesAsync(path, cancellationToken);
             var info = ImageProcessingService.GetInfo(data);
-            return ToolResults.Success(new ImageInfoResult(path, info.Width, info.Height, info.Format, info.HasAlpha, info.Bytes));
+            return ToolResults.Success(new ImageInfoResponse(path, info.Width, info.Height, info.Format, info.HasAlpha, info.Bytes));
         });
 
     [McpServerTool(Name = ToolNames.ListImages, Title = "List images", ReadOnly = true, Idempotent = true, OpenWorld = false)]
@@ -88,7 +88,7 @@ public sealed class ImageTools
                 images.Add(new ListedImage(file.Name, file.FullName, info.Width, info.Height, info.Format, file.Length, file.LastWriteTime.ToString("O", CultureInfo.InvariantCulture)));
             }
 
-            return ToolResults.Success(new ListImagesResult(root, images.Count, images));
+            return ToolResults.Success(new ListImagesResponse(root, images.Count, images));
         });
 
     //--------------------------------------------------------------------------------
@@ -315,7 +315,7 @@ public sealed class ImageTools
                 logger.InfoImageSaved(ToolNames.ExportImageSizes, icoPath, 0, 0, icoData.Length);
             }
 
-            return ToolResults.Success(new ExportSizesResult(directory, images, exportedIco, new SourceInfo(inputPath, info.Width, info.Height, info.Format)));
+            return ToolResults.Success(new ExportImageSizesResponse(directory, images, exportedIco, new SourceImageInfo(inputPath, info.Width, info.Height, info.Format)));
         });
     }
 
@@ -370,9 +370,9 @@ public sealed class ImageTools
     // Execute
     //--------------------------------------------------------------------------------
 
-    private async Task<CallToolResult> ExecuteAsync(string tool, string prefix, ProcessingArguments arguments, Func<ProcessingContext, byte[]> operation, CancellationToken cancellationToken)
+    private Task<CallToolResult> ExecuteAsync(string tool, string prefix, ProcessingArguments arguments, Func<ProcessingContext, byte[]> operation, CancellationToken cancellationToken)
     {
-        return await ExecuteReadOnlyAsync(tool, async () =>
+        return ExecuteReadOnlyAsync(tool, async () =>
         {
             var inputPath = paths.ResolveInputPath(arguments.Input, "input");
             var data = await File.ReadAllBytesAsync(inputPath, cancellationToken);
@@ -403,13 +403,13 @@ public sealed class ImageTools
             var resultInfo = ImageProcessingService.GetInfo(result);
             logger.InfoImageSaved(tool, outputFile, resultInfo.Width, resultInfo.Height, result.Length);
 
-            var value = new ProcessingToolResult(
+            var value = new ProcessImageResponse(
                 outputFile,
                 resultInfo.Width,
                 resultInfo.Height,
                 output.Format,
                 result.Length,
-                new SourceInfo(inputPath, info.Width, info.Height, info.Format));
+                new SourceImageInfo(inputPath, info.Width, info.Height, info.Format));
 
             var content = new List<ContentBlock>();
             if (GeneratedImageResources.CreateLink(paths, outputFile, output.Format, result.Length) is { } link)
@@ -491,18 +491,4 @@ public sealed class ImageTools
         bool RequireTransparency = false);
 
     private sealed record ProcessingContext(ReadOnlyMemory<byte> Data, ImageInfo Info, string Format, int Quality);
-
-    private sealed record ImageInfoResult(string Path, int Width, int Height, string Format, bool HasAlpha, long Bytes);
-
-    private sealed record SourceInfo(string Path, int Width, int Height, string Format);
-
-    private sealed record ProcessingToolResult(string Path, int Width, int Height, string Format, long Bytes, SourceInfo Source);
-
-    private sealed record ListedImage(string Name, string Path, int Width, int Height, string Format, long Bytes, string Modified);
-
-    private sealed record ListImagesResult(string Directory, int Count, IReadOnlyList<ListedImage> Images);
-
-    private sealed record ExportedIco(string Path, IReadOnlyList<int> Sizes, long Bytes);
-
-    private sealed record ExportSizesResult(string Directory, IReadOnlyList<SavedImage> Images, ExportedIco? Ico, SourceInfo Source);
 }

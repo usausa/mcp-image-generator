@@ -4,7 +4,6 @@ using System.Collections.Concurrent;
 using System.Text.Json;
 
 using ModelContextProtocol;
-using ModelContextProtocol.Client;
 using ModelContextProtocol.Protocol;
 
 [Collection(ServerCollectionDefinition.Name)]

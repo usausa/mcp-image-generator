@@ -79,6 +79,6 @@ public static class SizePresets
     public static SizePreset Custom(IReadOnlyList<int> sizes, string name, string extension, bool ico) =>
         new("custom", Square(sizes, size => $"{name}-{size}{extension}"), ico ? sizes.Where(static x => x <= 256).ToArray() : [], ico ? $"{name}.ico" : null);
 
-    private static SizeEntry[] Square(IReadOnlyList<int> sizes, Func<int, string> fileName) =>
+    private static SizeEntry[] Square(IEnumerable<int> sizes, Func<int, string> fileName) =>
         sizes.Select(size => new SizeEntry(fileName(size), size, size)).ToArray();
 }

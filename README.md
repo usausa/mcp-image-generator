@@ -14,7 +14,7 @@ Point Claude Code, VS Code or any MCP client at the server and ask for assets in
 
 ## 🚀 Getting started
 
-1. Unpack the published files into a folder, e.g. `C:\Tools\ImageGenerator.McpServer\`.
+1. Copy the published files into a folder, e.g. `C:\Tools\ImageGenerator.McpServer\`. The server is a single binary plus `appsettings.json`; bundled native libraries (SkiaSharp) are extracted to the temp directory (`%TEMP%\.net\ImageGenerator.McpServer` on Windows, `$HOME/.net` or `/var/tmp/.net` on Linux) on first start.
 2. Set the Foundry connection (see Configuration below). The API key should come from an environment variable rather than a file:
 
    ```
@@ -150,3 +150,9 @@ Prometheus text format is served at `http://localhost:9464/metrics` (set `Promet
 | `image_generation_retries_total` | counter | `tool`, `status_code` | Retries against Foundry (`0` = timeout) |
 | `mcp_server_operation_duration_seconds` | histogram | `mcp.method.name`, ... | MCP request handling (from the SDK) |
 | `application_uptime_seconds_total` | counter | | Uptime |
+
+ASP.NET Core, HttpClient and .NET runtime instrumentation are exported as well.
+
+## 📄 License
+
+MIT
