@@ -7,7 +7,8 @@ using ModelContextProtocol;
 using ModelContextProtocol.Client;
 using ModelContextProtocol.Protocol;
 
-public sealed class McpToolTests : IClassFixture<TestApplicationFactory>
+[Collection(ServerCollectionDefinition.Name)]
+public sealed class McpToolTests
 {
     private readonly TestApplicationFactory factory;
 
@@ -31,9 +32,9 @@ public sealed class McpToolTests : IClassFixture<TestApplicationFactory>
 
         // Assert
         var names = tools.Select(static x => x.Name).ToArray();
-        Assert.Contains(ToolNames.GenerateImage, names);
-        Assert.Contains(ToolNames.EditImage, names);
-        Assert.Contains(ToolNames.GetImageInfo, names);
+        Assert.Equal(
+            [ToolNames.ConvertImage, ToolNames.CropImage, ToolNames.EditImage, ToolNames.GenerateImage, ToolNames.GetImageInfo, ToolNames.MakeTransparent, ToolNames.ResizeImage, ToolNames.TrimImage],
+            names.Order(StringComparer.Ordinal));
 
         // DIで解決されるパラメーターやCancellationTokenはスキーマに含まれない
         var generate = tools.First(static x => x.Name == ToolNames.GenerateImage);
@@ -85,8 +86,9 @@ public sealed class McpToolTests : IClassFixture<TestApplicationFactory>
         var request = factory.Foundry.Requests.Last();
         Assert.Contains("/openai/deployments/gpt-image-test/images/generations?api-version=2025-04-01-preview", request.Uri.ToString(), StringComparison.Ordinal);
         Assert.Equal("test-api-key", request.ApiKey);
-        Assert.Equal("multipart/form-data", request.MediaType);
+        Assert.Equal("application/json", request.MediaType);
         Assert.Equal("Wide key visual, no text", request.GetField("prompt"));
+        Assert.Equal("1", request.GetField("n"));
         Assert.Equal("high", request.GetField("quality"));
         Assert.Equal("1024x1024", request.GetField("size"));
         Assert.Equal("png", request.GetField("output_format"));
@@ -236,7 +238,9 @@ public sealed class McpToolTests : IClassFixture<TestApplicationFactory>
 
         var request = factory.Foundry.Requests.Last();
         Assert.Contains("/images/edits?api-version=", request.Uri.ToString(), StringComparison.Ordinal);
+        Assert.Equal("multipart/form-data", request.MediaType);
         Assert.True(request.HasField("image[]"));
+        Assert.Equal("Redraw image 1 as a voxel avatar", request.GetField("prompt"));
         Assert.Equal("1024x1024", request.GetField("size"));
     }
 

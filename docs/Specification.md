@@ -8,7 +8,7 @@ Microsoft Foundry の画像生成モデルと SkiaSharp による画像加工を
 | ソリューション | ImageGenerator.McpServer |
 | 基盤テンプレート | template-web-api (Template.ApiServer) をシンプル化して使用 |
 | 画像生成ロジックの参照元 | Service-ImageGenerator (ImageGenerator) |
-| ステータス | Phase 1 (基盤)・Phase 2 (MCP + 生成) 完了。Phase 3 (画像加工ツール) 未着手 |
+| ステータス | Phase 1 (基盤)・Phase 2 (MCP + 生成)・Phase 3 (画像加工ツール) 完了。実 Foundry での動作確認済み |
 
 ---
 
@@ -20,7 +20,7 @@ Microsoft Foundry の画像生成モデルと SkiaSharp による画像加工を
 
 - 画像の生成は Microsoft Foundry (Azure OpenAI 互換 Images API) の `gpt-image-2` 等を使用する
 - 生成モデルが出力できるサイズは限られる (1024x1024 / 1024x1536 / 1536x1024) ため、要求されたサイズへのトリミング・リサイズ・形式変換は SkiaSharp で行う
-- 既存の画像ファイルに対する加工 (リサイズ、トリミング、変換) も同じツール群で提供する (Phase 3)
+- 既存の画像ファイルに対する加工 (リサイズ、トリミング、余白除去、変換、透過化) も同じツール群で提供する
 
 想定する利用例 (MAUI アプリ `Template.MobileApp/Resources/Images` のアセット作成):
 
@@ -45,7 +45,7 @@ Microsoft Foundry の画像生成モデルと SkiaSharp による画像加工を
 |---------|------|------|
 | Phase 1 | 仕様書作成。template-web-api から API 機能を除去し単独プロジェクトへ簡素化した基盤構造の作成。テレメトリ計測器の定義 | 完了 |
 | Phase 2 | MCP サーバー組み込み、Foundry 画像生成 (`generate_image` / `edit_image`、最終サイズへの後処理を含む)、`get_image_info`、出力ファイル保持期間管理、MCP 呼び出しテスト | 完了 |
-| Phase 3 | SkiaSharp による画像加工ツール (`resize_image` / `crop_image` / `trim_image` / `convert_image` / `make_transparent`) | 未着手 |
+| Phase 3 | SkiaSharp による画像加工ツール (`resize_image` / `crop_image` / `trim_image` / `convert_image` / `make_transparent`) | 完了 |
 | Phase 4 (候補) | アセットワークフロー (`export_image_sizes` とプラットフォームプリセット、ICO 出力)、`list_images`、プロンプトテンプレート、リソース公開、MCP エンドポイント認証 | 検討中 |
 
 ---
@@ -89,7 +89,8 @@ ImageGenerator.McpServer/
 │  ├─ AppErrorCode.cs                  エラー分類
 │  └─ AppException.cs                  ツール結果へ変換される業務例外
 ├─ Models/
-│  ├─ FitMode.cs                       cover / contain / pad
+│  ├─ CropAnchor.cs                    トリミングの基準位置
+│  ├─ FitMode.cs                       cover / contain / pad / stretch
 │  ├─ ImageFormats.cs                  png / jpeg / webp の正規化・拡張子・MIME
 │  ├─ ImageGenerationRequest.cs        Foundry への生成要求
 │  ├─ ImageGenerationResult.cs         生成結果 (画像バイト列、usage、所要時間)
@@ -97,7 +98,7 @@ ImageGenerator.McpServer/
 │  └─ ImageUsage.cs                    トークン使用量
 ├─ Services/
 │  ├─ ImageGenerationService.cs        Foundry REST クライアント (リトライ、同時実行制限、usage 解析)
-│  ├─ ImageProcessingService.cs        SkiaSharp (情報取得、目標サイズへの Fit)
+│  ├─ ImageProcessingService.cs        SkiaSharp (情報取得、リサイズ、トリミング、余白トリム、変換、透過化)
 │  └─ ImagePathService.cs              入力パス検証、出力先解決、保存
 ├─ Settings/
 │  ├─ ImageGeneratorSetting.cs         Foundry 接続と生成既定値
@@ -108,7 +109,8 @@ ImageGenerator.McpServer/
 │  └─ TelemetryExtensions.cs           OpenTelemetry への登録
 ├─ Tools/
 │  ├─ GenerationTools.cs               generate_image / edit_image
-│  ├─ ImageTools.cs                    get_image_info (Phase 3 で加工ツールを追加)
+│  ├─ ImageParameters.cs               ツール引数の検証と正規化 (選択肢、色、fit、anchor、アスペクト比)
+│  ├─ ImageTools.cs                    get_image_info / resize_image / crop_image / trim_image / convert_image / make_transparent
 │  └─ ToolResults.cs                   結果 JSON / エラー / 画像ブロックの生成
 ├─ Workers/
 │  └─ FileRetentionWorker.cs           出力ディレクトリの保持期間管理
@@ -158,11 +160,11 @@ ImageGenerator.McpServer/
 | 1 | `generate_image` | 生成 | プロンプトから画像を生成し、必要なら最終サイズへ後処理して保存する | 2 (完了) |
 | 2 | `edit_image` | 生成 | 参照画像 (と任意のマスク) を入力に画像を生成する | 2 (完了) |
 | 3 | `get_image_info` | 情報 | 画像の幅・高さ・形式・透過の有無・サイズを返す | 2 (完了) |
-| 4 | `resize_image` | 加工 | 指定サイズ / 倍率へリサイズする (fit 指定) | 3 |
-| 5 | `crop_image` | 加工 | 矩形またはアスペクト比 + 基準位置でトリミングする | 3 |
-| 6 | `trim_image` | 加工 | 透過または単色の余白を自動除去する | 3 |
-| 7 | `convert_image` | 加工 | PNG / JPEG / WebP へ変換する (品質指定) | 3 |
-| 8 | `make_transparent` | 加工 | 指定色 (または自動判定した背景色) を透過にする | 3 |
+| 4 | `resize_image` | 加工 | 指定サイズ / 倍率へリサイズする (fit 指定) | 3 (完了) |
+| 5 | `crop_image` | 加工 | 矩形またはアスペクト比 + 基準位置でトリミングする | 3 (完了) |
+| 6 | `trim_image` | 加工 | 透過または単色の余白を自動除去する | 3 (完了) |
+| 7 | `convert_image` | 加工 | PNG / JPEG / WebP へ変換する (品質指定) | 3 (完了) |
+| 8 | `make_transparent` | 加工 | 指定色 (または自動判定した背景色) を透過にする | 3 (完了) |
 | 9 | `export_image_sizes` | ワークフロー | 1 枚の元画像からプラットフォームプリセットのサイズ群を一括出力する | 4 |
 | 10 | `list_images` | 情報 | 出力ディレクトリ等の画像を一覧する | 4 |
 
@@ -219,18 +221,20 @@ ImageGenerator.McpServer/
 | ツール | 主なパラメーター | 備考 | フェーズ |
 |--------|----------------|------|---------|
 | `get_image_info` | `input` | 幅、高さ、形式 (マジックナンバーで判定)、透過の有無、バイト数 | 2 (完了) |
-| `resize_image` | `input`, `width`, `height`, `scale`, `fit` (`stretch` / `contain` / `cover` / `pad`), `background` | `width` / `height` の片方省略で比率維持。拡大は `MaxDimension` まで | 3 |
-| `crop_image` | `input`, `x`, `y`, `width`, `height` または `aspect` (`16:9` 等) + `anchor` (`center` / `top` / `bottom` / `left` / `right`) | 矩形指定とアスペクト比指定のどちらか | 3 |
-| `trim_image` | `input`, `color` (省略時は透過または四隅の色から自動判定), `tolerance`, `padding` | トリム後に `padding` ピクセルの余白を付けられる | 3 |
-| `convert_image` | `input`, `outputFormat`, `quality` | 再エンコードによりメタデータは保持しない | 3 |
-| `make_transparent` | `input`, `color` (省略時は四隅の色から自動判定), `tolerance`, `feather` | 単色背景の色抜き。出力は `png` / `webp` | 3 |
+| `resize_image` | `input`, `width`, `height`, `scale`, `fit` (`cover` 既定 / `contain` / `pad` / `stretch`), `background` | `width` / `height` の片方省略で比率維持。`scale` は `width` / `height` と併用不可。拡大は `MaxDimension` まで | 3 (完了) |
+| `crop_image` | `input`, `x`, `y`, `width`, `height` または `aspect` (`16:9` / `1.5` 等) + `anchor` (`center` 既定 / `top` / `bottom` / `left` / `right` / `top-left` 等) | アスペクト比指定時はその比率で内接する最大の矩形。矩形指定は `x` / `y` 既定 0、`width` / `height` 既定は残り全体。画像外はエラー | 3 (完了) |
+| `trim_image` | `input`, `color` (省略時は四隅のいずれかが透明なら透過、そうでなければ最頻の隅の色), `tolerance` (既定 10), `padding` (既定 0) | トリム後に `padding` ピクセルの余白を背景色で付ける。全面が背景の場合は無変更 | 3 (完了) |
+| `convert_image` | `input`, `outputFormat` (または `outputPath` の拡張子), `quality` | 再エンコードによりメタデータは保持しない。jpeg では透過部分を白で塗る | 3 (完了) |
+| `make_transparent` | `input`, `color` (省略時は最頻の隅の色), `tolerance` (既定 10), `feather` (既定 0) | 色距離 (RGB 最大差) が `tolerance` 以内を完全透過、`feather` の範囲を段階的に透過。出力は `png` / `webp` のみ | 3 (完了) |
 
-実装メモ (Phase 2 で確認済みの API):
+加工ツール共通: 入力を読み込んで形式を判定し、出力形式は `outputFormat` → `outputPath` の拡張子 → 入力と同じ形式の順で決める。結果 JSON には `source` (入力のパス・サイズ・形式) を含める。
+
+実装メモ (SkiaSharp 4.152.0):
 
 - デコード: `SKImage.FromEncodedData(ReadOnlySpan<byte>)`、エンコード: `SKImage.Encode(SKEncodedImageFormat.Png | Jpeg | Webp, quality)`
-- 描画: `SKSurface.Create(SKImageInfo)` + `SKCanvas.DrawImage(image, srcRect, destRect, SKSamplingOptions(SKCubicResampler.Mitchell), paint)`
+- 描画: `SKSurface.Create(SKImageInfo)` + `SKCanvas.DrawImage(image, srcRect, destRect, SKSamplingOptions(SKCubicResampler.Mitchell), paint)`。リサイズ・トリミング・トリム・変換はすべて「元画像の矩形をキャンバスへ描画」で統一
 - 形式判定は先頭バイト (PNG / JPEG / RIFF-WEBP) で行う。透過の有無は `SKImage.AlphaType != Opaque`
-- トリム / 透過化 (Phase 3) はピクセル走査 (`SKBitmap.GetPixelSpan`) で行う
+- トリム / 透過化は `SKImage.ReadPixels` で RGBA8888 (Unpremul) の `SKBitmap` に読み出し、`GetPixelSpan()` を走査する
 
 ### 3.6 ワークフロー (Phase 4 候補)
 
@@ -315,16 +319,16 @@ HTTP 接続エラー・ファイル IO エラー・アクセス拒否もメッ�
 | 項目 | 内容 |
 |------|------|
 | ベース URL | 設定 `ImageGenerator:Endpoint` (例: `https://{resource}.services.ai.azure.com/`) |
-| 生成 | `POST openai/deployments/{DeploymentName}/images/generations?api-version={ApiVersion}` |
-| 編集 | `POST openai/deployments/{DeploymentName}/images/edits?api-version={ApiVersion}` |
+| 生成 | `POST openai/deployments/{DeploymentName}/images/generations?api-version={ApiVersion}` — `application/json` |
+| 編集 | `POST openai/deployments/{DeploymentName}/images/edits?api-version={ApiVersion}` — `multipart/form-data` |
 | 認証 | リクエストヘッダー `api-key: {ApiKey}` |
 | API バージョン | `2025-04-01-preview` (設定で変更可能) |
-| リクエスト形式 | `multipart/form-data` (生成・編集とも) |
+| リクエスト形式 | 生成は JSON 本文 (この Foundry デプロイの generations は multipart を `unsupported_content_type` で拒否する)。編集は参照画像を含むため multipart |
 | レスポンス | JSON。`data[0].b64_json` を Base64 デコードして画像バイト列を得る。`usage` が含まれる場合はトークン数を記録する |
 
 ### 4.2 パラメーターマッピング
 
-| ツール引数 | フォームフィールド | 備考 |
+| ツール引数 | JSON プロパティ / フォームフィールド | 備考 |
 |-----------|------------------|------|
 | `prompt` | `prompt` | |
 | (設定) | `model` | `DeploymentName` |
@@ -404,7 +408,7 @@ HTTP 接続エラー・ファイル IO エラー・アクセス拒否もメッ�
   "RetentionDays": 7,
   "Defaults": {
     "Size": "1024x1024",
-    "Quality": "low",
+    "Quality": "high",
     "OutputFormat": "png",
     "OutputCompression": 80
   }
@@ -490,7 +494,13 @@ OpenTelemetry で以下を出力する。計測器は `Telemetry/ApplicationInst
 | `EditImageSendsReferenceImages` | `images/edits` へ `image[]` が送られ、256x256 へ後処理される |
 | `EditImageWithMissingReferenceReturnsError` | 入力ファイルなしのエラー |
 | `GetImageInfoReturnsDimensions` | 幅・高さ・形式・透過・バイト数 |
+| `ResizeImage*` (4 件) | 片方省略時の比率維持、`pad` の透過余白、`scale`、`scale` と `width` の併用エラー |
+| `CropImage*` (4 件) | 矩形指定、アスペクト比 + `anchor` (top / bottom で切り出し位置が変わること)、画像外のエラー |
+| `TrimImage*` (2 件) | 透過余白の除去 + `padding`、単色余白の除去 |
+| `ConvertImage*` (2 件) | png → jpeg (透過なし)、形式未指定のエラー |
+| `MakeTransparent*` (2 件) | 背景色の透過化 (隅が透明・中央が不透明)、jpeg 出力のエラー |
 
+- サーバーは `ServerCollectionDefinition` のコレクションフィクスチャで全テストクラス共有とし、テストプロセス内で 1 つだけ起動する (同一プロセスで複数の MCP ホストを起動すると、SDK のツールスキーマ生成が不安定になり `IProgress` 引数がスキーマに漏れることがあった。本番は単一ホストのため影響なし)
 - 実際の Foundry を呼ぶ生成テストは課金されるため自動テストには含めない。手動確認手順は README に記載する
 - テストは Microsoft.Testing.Platform で実行する。テストが 1 件もないプロジェクトは終了コード 8 で失敗するため、常に最低 1 件のテストを置く
 - 実行方法: `dotnet run --project tests/ImageGenerator.McpServer.Tests` または Visual Studio のテストエクスプローラー。.NET 10 SDK の `dotnet test` は既定で VSTest を使うため、`global.json` によるオプトインをしない限りこのプロジェクトでは使用できない (他プロジェクトと同様 `global.json` は置かない)
@@ -524,15 +534,21 @@ OpenTelemetry で以下を出力する。計測器は `Telemetry/ApplicationInst
 | 設定値 | HTTP ポート 12080、Prometheus 9464、JPEG / WebP 品質 80 |
 | テスト | 8 章の 11 件 |
 
+### 9.3 Phase 3: 画像加工
+
+| 項目 | 内容 |
+|------|------|
+| ツール | `resize_image`、`crop_image`、`trim_image`、`convert_image`、`make_transparent` (`Tools/ImageTools.cs`、共通実行部 `ExecuteAsync`) |
+| サービス | `ImageProcessingService` に `Resize` (Fit の一般化 + `stretch`)、`Crop` / `ComputeAspectRect`、`Trim`、`ConvertFormat`、`MakeTransparent` を追加 |
+| 共通 | `Tools/ImageParameters.cs` (選択肢・形式・fit・anchor・色・アスペクト比の検証)、`Models/CropAnchor.cs`、`FitMode.Stretch` |
+| 設定値 | `Defaults:Quality` を MAUI アセットの実績に合わせて `high` に変更 |
+| Foundry | generations を JSON 本文に変更 (実 API で multipart が拒否されたため)。edits は multipart のまま |
+| テスト | 8 章の 14 件を追加 (計 25 件)。サーバーを共有フィクスチャ化 |
+| 実 API 確認 | `generate_image` (`background: transparent`、256x256 後処理、21 秒、入力 35 / 出力 196 トークン)、`edit_image` (参照画像 1 枚、17 秒、`inputImageTokens: 256`)、`trim_image` / `get_image_info` を実 Foundry で確認 |
+
 ---
 
 ## 10. 実装計画
-
-### Phase 3: 画像加工
-
-1. `ImageProcessingService` にリサイズ (`stretch` / `contain` / `cover` / `pad` と背景色) / トリミング (矩形・アスペクト比 + 基準位置) / 余白トリム / 変換 / 透過化を追加
-2. `Tools/ImageTools.cs` に `resize_image` / `crop_image` / `trim_image` / `convert_image` / `make_transparent` を追加 (共通パラメーターは 3.3 節)
-3. フィクスチャ画像による加工テスト (出力の幅・高さ・透過・形式)
 
 ### Phase 4: ワークフロー (候補)
 
@@ -553,7 +569,7 @@ OpenTelemetry で以下を出力する。計測器は `Telemetry/ApplicationInst
 | 3 | 保存先の指定方法 | `outputPath` でプロジェクトのアセットフォルダへ直接保存。既定は上書き禁止 |
 | 4 | 透過背景 | Images API の `background: transparent` を優先し、`make_transparent` を Phase 3 で補助として用意 |
 | 5 | 画像データの返却 | 既定はファイルパスのみ。`includeImage = true` で base64 を埋め込む |
-| 6 | `quality` の既定値 | `low` (設定 `Defaults:Quality` で変更可能。MAUI アセットの実績は medium / high が多い) |
+| 6 | `quality` の既定値 | `high` (MAUI アセットの実績に合わせる。設定 `Defaults:Quality` で変更可能) |
 | 7 | 入力 / 出力パスの制限 | `InputRoots` / `OutputRoots` 空で任意パス許可 (ローカル利用前提) |
 | 8 | 名称 | `ImageGenerator.McpServer` |
 | 9 | 認証 | なし (ローカル利用) |
@@ -563,9 +579,10 @@ OpenTelemetry で以下を出力する。計測器は `Telemetry/ApplicationInst
 
 | 事項 | 内容 |
 |------|------|
-| `background` パラメーターの対応確認 | `gpt-image-2` デプロイで `background: transparent` が受け付けられるかを実 API で確認する |
-| アイコンセットのプリセット | 対象プラットフォーム (favicon / android / ios / windows / scales) の要否 |
-| 実 API での動作確認 | README の手動確認手順で `generate_image` / `edit_image` を実行し、usage の有無と生成時間を確認する |
+| アイコンセットのプリセット | 対象プラットフォーム (favicon / android / ios / windows / scales) の要否 (Phase 4) |
+| 透過背景の品質 | `background: transparent` は有効 (四隅のアルファ 0) だが、`low` 品質では被写体の周囲に半透明の装飾が描かれることがあった。プロンプトで「plain transparent background」等を明示するか `make_transparent` を併用する |
+
+確認済み (2026-09-11、実 Foundry `gpt-image-2`): generations は JSON 本文のみ受け付ける、`background: transparent` は有効、応答に `usage` (`input_tokens_details` を含む) が含まれる、1 枚あたり約 17～21 秒 (`low`)。
 
 ---
 

@@ -4,15 +4,19 @@ using SkiaSharp;
 
 public static class TestImages
 {
+    public static readonly SKColor Background = SKColors.CornflowerBlue;
+
+    public static readonly SKColor Content = SKColors.Orange;
+
+    // 中央半分の領域にオレンジの矩形を置いた画像。背景は青または透過
     public static byte[] CreatePng(int width, int height, bool transparent)
     {
         using var surface = SKSurface.Create(new SKImageInfo(width, height, SKColorType.Rgba8888, SKAlphaType.Premul));
         var canvas = surface.Canvas;
-        canvas.Clear(transparent ? SKColors.Transparent : SKColors.CornflowerBlue);
+        canvas.Clear(transparent ? SKColors.Transparent : Background);
 
-        // 中央に別色の矩形を置き、トリミング後も内容が残るようにする
         using var paint = new SKPaint();
-        paint.Color = SKColors.Orange;
+        paint.Color = Content;
         canvas.DrawRect(new SKRect(width / 4f, height / 4f, width * 3 / 4f, height * 3 / 4f), paint);
 
         using var image = surface.Snapshot();
@@ -24,5 +28,11 @@ public static class TestImages
     {
         using var image = SKImage.FromEncodedData(data);
         return (image.Width, image.Height);
+    }
+
+    public static SKColor GetPixel(byte[] data, int x, int y)
+    {
+        using var bitmap = SKBitmap.Decode(data);
+        return bitmap.GetPixel(x, y);
     }
 }

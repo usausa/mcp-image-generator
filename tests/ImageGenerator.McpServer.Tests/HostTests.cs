@@ -3,7 +3,8 @@ namespace ImageGenerator.McpServer;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.Options;
 
-public sealed class HostTests : IClassFixture<TestApplicationFactory>
+[Collection(ServerCollectionDefinition.Name)]
+public sealed class HostTests
 {
     private readonly TestApplicationFactory factory;
 

@@ -311,18 +311,14 @@ public sealed class GenerationTools
         ValidateDimension(arguments.Height, "height");
         var needsFit = (arguments.Width is not null) || (arguments.Height is not null);
 
-        var quality = NormalizeChoice(arguments.Quality, Qualities, setting.Defaults.Quality, "quality");
-        var background = NormalizeChoice(arguments.Background, Backgrounds, ImageGenerationService.BackgroundAuto, "background");
-        var fit = ParseFit(arguments.Fit);
+        var quality = ImageParameters.NormalizeChoice(arguments.Quality, Qualities, setting.Defaults.Quality, "quality");
+        var background = ImageParameters.NormalizeChoice(arguments.Background, Backgrounds, ImageGenerationService.BackgroundAuto, "background");
+        var fit = ImageParameters.ParseFit(arguments.Fit, allowStretch: false);
         var size = arguments.Size is not null
-            ? NormalizeChoice(arguments.Size, Sizes, setting.Defaults.Size, "size")
+            ? ImageParameters.NormalizeChoice(arguments.Size, Sizes, setting.Defaults.Size, "size")
             : SelectSize(arguments.Width, arguments.Height);
 
-        var explicitFormat = ImageFormats.Normalize(arguments.OutputFormat);
-        if (!String.IsNullOrWhiteSpace(arguments.OutputFormat) && (explicitFormat is null))
-        {
-            throw new AppException(AppErrorCode.InvalidParameter, $"outputFormat must be one of: {String.Join(", ", ImageFormats.All)}.");
-        }
+        var explicitFormat = ImageParameters.NormalizeFormat(arguments.OutputFormat);
 
         if (arguments.OutputCompression is < 0 or > 100)
         {
@@ -382,7 +378,7 @@ public sealed class GenerationTools
 
     private string SelectSize(int? width, int? height)
     {
-        var defaultSize = NormalizeChoice(setting.Defaults.Size, Sizes, Sizes[0], "Defaults:Size");
+        var defaultSize = ImageParameters.NormalizeChoice(setting.Defaults.Size, Sizes, Sizes[0], "Defaults:Size");
         if (width is null || height is null)
         {
             return defaultSize;
@@ -401,37 +397,6 @@ public sealed class GenerationTools
     {
         var parts = size.Split('x');
         return Double.Parse(parts[0], CultureInfo.InvariantCulture) / Double.Parse(parts[1], CultureInfo.InvariantCulture);
-    }
-
-    private static string NormalizeChoice(string? value, string[] choices, string defaultValue, string name)
-    {
-        if (String.IsNullOrWhiteSpace(value))
-        {
-            return defaultValue;
-        }
-
-        var text = value.Trim();
-        foreach (var choice in choices)
-        {
-            if (choice.Equals(text, StringComparison.OrdinalIgnoreCase))
-            {
-                return choice;
-            }
-        }
-
-        throw new AppException(AppErrorCode.InvalidParameter, $"{name} must be one of: {String.Join(", ", choices)}.");
-    }
-
-    private static FitMode ParseFit(string? value)
-    {
-        if (String.IsNullOrWhiteSpace(value))
-        {
-            return FitMode.Cover;
-        }
-
-        return Enum.TryParse<FitMode>(value.Trim(), ignoreCase: true, out var fit)
-            ? fit
-            : throw new AppException(AppErrorCode.InvalidParameter, "fit must be one of: cover, contain, pad.");
     }
 
     //--------------------------------------------------------------------------------

@@ -1,6 +1,6 @@
 # mcp-image-generator
 
-MCP (Model Context Protocol) server that creates application assets (icons, banners, avatars, illustrations) with Microsoft Foundry image models (`gpt-image-2`) and post-processes them with SkiaSharp (crop to aspect ratio, resize, convert).
+MCP (Model Context Protocol) server that creates application assets (icons, banners, avatars, illustrations) with Microsoft Foundry image models (`gpt-image-2`) and post-processes them with SkiaSharp (crop to aspect ratio, resize, trim, convert, make transparent).
 
 - Specification: [docs/Specification.md](docs/Specification.md)
 - Solution: `ImageGenerator.McpServer.slnx`
@@ -12,8 +12,13 @@ MCP (Model Context Protocol) server that creates application assets (icons, bann
 | `generate_image` | Generate an image from a prompt. `width` / `height` crop and resize the render to the final asset size; `outputPath` saves it directly into your project. |
 | `edit_image` | Generate from reference images (and an optional mask), e.g. keep a character identity in a new style. |
 | `get_image_info` | Width, height, format, alpha and file size of an image file. |
+| `resize_image` | Resize to a size or scale factor (`fit`: cover / contain / pad / stretch). |
+| `crop_image` | Crop by rectangle or by aspect ratio with an anchor. |
+| `trim_image` | Remove transparent or solid-color margins, optionally add padding. |
+| `convert_image` | Convert between png, jpeg and webp. |
+| `make_transparent` | Make a background color transparent (png / webp output). |
 
-Image processing tools (`resize_image`, `crop_image`, `trim_image`, `convert_image`, `make_transparent`) are planned for the next phase.
+All file parameters are paths on the server machine. Pass `overwrite=true` to replace an existing file.
 
 ## Configuration
 
@@ -34,8 +39,9 @@ For services use environment variables (`ImageGenerator__Endpoint`, `ImageGenera
 | `ImageGenerator:InputRoots` / `OutputRoots` | `[]` | Allowed directories for input / output paths (empty = any) |
 | `ImageGenerator:MaxConcurrency` | `2` | Concurrent Foundry requests |
 | `ImageGenerator:RetentionDays` | `7` | Days to keep files in the default output directory (`0` disables) |
-| `ImageGenerator:Defaults` | `1024x1024` / `low` / `png` / `80` | Default size, quality, format and compression |
+| `ImageGenerator:Defaults` | `1024x1024` / `high` / `png` / `80` | Default size, quality, format and compression |
 | `ImageProcessing:MaxDimension` | `4096` | Maximum output width / height |
+| `ImageProcessing:JpegQuality` / `WebpQuality` | `80` | Default encoding quality |
 | `Prometheus:Uri` | `http://0.0.0.0:9464` | Prometheus metrics listener (empty disables) |
 
 ## Build
@@ -86,6 +92,7 @@ VS Code (`.vscode/mcp.json`):
 ## Manual verification (uses the real Foundry deployment and incurs cost)
 
 1. Configure the endpoint and API key (see Configuration) and start the server.
-2. From the MCP client, call `generate_image` with a prompt, `quality=low`, `width=256`, `height=256` and an `outputPath` in a scratch directory. The result lists the saved path, size and token usage.
+2. From the MCP client, call `generate_image` with a prompt, `quality=low`, `width=256`, `height=256` and an `outputPath` in a scratch directory. The result lists the saved path, size and token usage (about 20 seconds per image).
 3. Call `edit_image` with `images=[<path of the generated file>]` to confirm the `images/edits` path.
-4. Check `http://localhost:9464/metrics` for `mcp_tool_requests_total` and `image_generation_tokens_total`.
+4. Call `trim_image` or `resize_image` on the generated file to confirm the SkiaSharp tools.
+5. Check `http://localhost:9464/metrics` for `mcp_tool_requests_total` and `image_generation_tokens_total`.

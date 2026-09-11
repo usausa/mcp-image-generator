@@ -85,37 +85,10 @@ public sealed class ImageGenerationService : IDisposable
 
     private async Task<(byte[] Data, ImageUsage? Usage)> SendAsync(ImageGenerationRequest request, Action<string>? onStatus, CancellationToken cancellationToken)
     {
-        using var content = new MultipartFormDataContent();
-#pragma warning disable CA2000
-        content.Add(new StringContent(request.Prompt), "prompt");
-        content.Add(new StringContent(setting.DeploymentName), "model");
-        content.Add(new StringContent(request.Size), "size");
-        content.Add(new StringContent(request.Quality), "quality");
-        content.Add(new StringContent(request.OutputFormat), "output_format");
-        if (request.OutputFormat is ImageFormats.Jpeg or ImageFormats.Webp)
-        {
-            content.Add(new StringContent(request.OutputCompression.ToString(CultureInfo.InvariantCulture)), "output_compression");
-        }
-
-        if (request.Background != BackgroundAuto)
-        {
-            content.Add(new StringContent(request.Background), "background");
-        }
-
-        content.Add(new StringContent("1"), "n");
-
-        var index = 0;
-        foreach (var image in request.ReferenceImages)
-        {
-            index++;
-            content.Add(await CreateFileContentAsync(image, cancellationToken), "image[]", String.Create(CultureInfo.InvariantCulture, $"image{index:D2}{Path.GetExtension(image)}"));
-        }
-
-        if (request.MaskImage is not null)
-        {
-            content.Add(await CreateFileContentAsync(request.MaskImage, cancellationToken), "mask", "mask" + Path.GetExtension(request.MaskImage));
-        }
-#pragma warning restore CA2000
+        // generationsはJSONのみ受け付け、editsは参照画像を含むためmultipartで送る
+        using HttpContent content = request.IsEdit
+            ? await CreateMultipartContentAsync(request, cancellationToken)
+            : CreateJsonContent(request);
 
         var apiPath = request.IsEdit
             ? $"openai/deployments/{setting.DeploymentName}/images/edits?api-version={setting.ApiVersion}"
@@ -143,6 +116,68 @@ public sealed class ImageGenerationService : IDisposable
         }
 
         return ParseResponse(responseBody);
+    }
+
+    private StringContent CreateJsonContent(ImageGenerationRequest request)
+    {
+        var body = new Dictionary<string, object>
+        {
+            ["prompt"] = request.Prompt,
+            ["model"] = setting.DeploymentName,
+            ["size"] = request.Size,
+            ["quality"] = request.Quality,
+            ["output_format"] = request.OutputFormat,
+            ["n"] = 1
+        };
+        if (request.OutputFormat is ImageFormats.Jpeg or ImageFormats.Webp)
+        {
+            body["output_compression"] = request.OutputCompression;
+        }
+
+        if (request.Background != BackgroundAuto)
+        {
+            body["background"] = request.Background;
+        }
+
+        return new StringContent(JsonSerializer.Serialize(body), Encoding.UTF8, "application/json");
+    }
+
+    private async Task<MultipartFormDataContent> CreateMultipartContentAsync(ImageGenerationRequest request, CancellationToken cancellationToken)
+    {
+#pragma warning disable CA2000
+        var content = new MultipartFormDataContent
+        {
+            { new StringContent(request.Prompt), "prompt" },
+            { new StringContent(setting.DeploymentName), "model" },
+            { new StringContent(request.Size), "size" },
+            { new StringContent(request.Quality), "quality" },
+            { new StringContent(request.OutputFormat), "output_format" },
+            { new StringContent("1"), "n" }
+        };
+        if (request.OutputFormat is ImageFormats.Jpeg or ImageFormats.Webp)
+        {
+            content.Add(new StringContent(request.OutputCompression.ToString(CultureInfo.InvariantCulture)), "output_compression");
+        }
+
+        if (request.Background != BackgroundAuto)
+        {
+            content.Add(new StringContent(request.Background), "background");
+        }
+
+        var index = 0;
+        foreach (var image in request.ReferenceImages)
+        {
+            index++;
+            content.Add(await CreateFileContentAsync(image, cancellationToken), "image[]", String.Create(CultureInfo.InvariantCulture, $"image{index:D2}{Path.GetExtension(image)}"));
+        }
+
+        if (request.MaskImage is not null)
+        {
+            content.Add(await CreateFileContentAsync(request.MaskImage, cancellationToken), "mask", "mask" + Path.GetExtension(request.MaskImage));
+        }
+#pragma warning restore CA2000
+
+        return content;
     }
 
     private static async Task<ByteArrayContent> CreateFileContentAsync(string path, CancellationToken cancellationToken)

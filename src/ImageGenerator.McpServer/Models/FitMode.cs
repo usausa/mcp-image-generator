@@ -9,5 +9,8 @@ public enum FitMode
     Contain,
 
     // 内接させた上で余白を付けて目標サイズにする
-    Pad
+    Pad,
+
+    // 比率を無視して目標サイズへ引き伸ばす (resize_imageのみ)
+    Stretch
 }

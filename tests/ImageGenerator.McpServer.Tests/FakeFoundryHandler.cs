@@ -52,15 +52,28 @@ public sealed class FakeFoundryHandler : HttpMessageHandler
 
 public sealed partial record FoundryRequest(Uri Uri, string? ApiKey, string? MediaType, string Body)
 {
-    // multipartのテキストフィールドを取り出す
+    public bool IsJson => MediaType == "application/json";
+
+    // JSON本文またはmultipartのテキストフィールドを取り出す
     public string? GetField(string name)
     {
+        if (IsJson)
+        {
+            using var document = JsonDocument.Parse(Body);
+            if (!document.RootElement.TryGetProperty(name, out var value))
+            {
+                return null;
+            }
+
+            return value.ValueKind == JsonValueKind.String ? value.GetString() : value.GetRawText();
+        }
+
         var match = FieldRegex().Matches(Body).FirstOrDefault(m => m.Groups["name"].Value == name);
         return match?.Groups["value"].Value;
     }
 
     public bool HasField(string name) => GetField(name) is not null;
 
-    [GeneratedRegex("name=\"?(?<name>[^\";\\r\\n]+)\"?[^\\r\\n]*\\r\\n\\r\\n(?<value>[^\\r]*)")]
+    [GeneratedRegex("name=\"?(?<name>[^\";\r\n]+)\"?[^\r\n]*\r\n\r\n(?<value>[^\r]*)")]
     private static partial Regex FieldRegex();
 }
