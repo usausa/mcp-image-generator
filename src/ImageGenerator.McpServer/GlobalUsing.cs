@@ -22,3 +22,5 @@ global using Microsoft.Extensions.Options;
 
 // ReSharper disable MissingBlankLines
 global using ImageGenerator.McpServer;
+global using ImageGenerator.McpServer.Models;
+global using ImageGenerator.McpServer.Settings;

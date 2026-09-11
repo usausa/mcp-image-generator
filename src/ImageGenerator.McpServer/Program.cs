@@ -25,6 +25,9 @@ builder.ConfigureHealth();
 // Telemetry
 builder.ConfigureTelemetry();
 
+// MCP
+builder.ConfigureMcp();
+
 // Components
 builder.ConfigureComponents();
 

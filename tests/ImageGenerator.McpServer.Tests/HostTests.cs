@@ -1,5 +1,8 @@
 namespace ImageGenerator.McpServer;
 
+using Microsoft.AspNetCore.Hosting;
+using Microsoft.Extensions.Options;
+
 public sealed class HostTests : IClassFixture<TestApplicationFactory>
 {
     private readonly TestApplicationFactory factory;
@@ -20,5 +23,15 @@ public sealed class HostTests : IClassFixture<TestApplicationFactory>
 
         // Assert
         response.EnsureSuccessStatusCode();
+    }
+
+    [Fact]
+    public void StartupFailsWithoutEndpoint()
+    {
+        // Arrange
+        using var invalid = factory.WithWebHostBuilder(static builder => builder.UseSetting("ImageGenerator:Endpoint", string.Empty));
+
+        // Act & Assert
+        Assert.Throws<OptionsValidationException>(invalid.CreateClient);
     }
 }

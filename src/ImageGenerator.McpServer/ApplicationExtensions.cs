@@ -2,7 +2,12 @@ namespace ImageGenerator.McpServer;
 
 using System.Runtime.InteropServices;
 
+using ImageGenerator.McpServer.Services;
 using ImageGenerator.McpServer.Telemetry;
+using ImageGenerator.McpServer.Tools;
+using ImageGenerator.McpServer.Workers;
+
+using ModelContextProtocol.Protocol;
 
 using OpenTelemetry.Logs;
 using OpenTelemetry.Metrics;
@@ -14,6 +19,19 @@ using Serilog;
 public static class ApplicationExtensions
 {
     private const string HealthEndpointPath = "/health";
+    private const string McpEndpointPath = "/mcp";
+
+    // MCP SDKが公開する診断ソース (ActivitySource / Meter)
+    private const string McpDiagnosticsSourceName = "Experimental.ModelContextProtocol";
+
+    private const string ServerName = "image-generator";
+
+    private const string ServerInstructions =
+        "Image asset generator for application development, backed by the Microsoft Foundry image model (gpt-image) with SkiaSharp post-processing. " +
+        "The model renders 1024x1024, 1024x1536 or 1536x1024 images; pass width/height to generate_image or edit_image to get the final asset size (the server picks the closest aspect ratio, crops and resizes). " +
+        "Generation takes 30 seconds to several minutes per image. " +
+        "Input images and output paths are file paths on the server machine; use absolute paths for project assets and overwrite=true to replace existing files. " +
+        "Results are saved to disk and the response contains the saved paths, image sizes and token usage.";
 
     //--------------------------------------------------------------------------------
     // System
@@ -117,6 +135,7 @@ public static class ApplicationExtensions
                         .AddRuntimeInstrumentation()
                         .AddHttpClientInstrumentation()
                         .AddAspNetCoreInstrumentation()
+                        .AddMeter(McpDiagnosticsSourceName)
                         .AddApplicationInstrumentation();
 
                     if (useOtlpExporter)
@@ -149,6 +168,7 @@ public static class ApplicationExtensions
                                 !context.Request.Path.StartsWithSegments(HealthEndpointPath, StringComparison.OrdinalIgnoreCase);
                         })
                         .AddHttpClientInstrumentation()
+                        .AddSource(McpDiagnosticsSourceName)
                         .AddApplicationInstrumentation();
 
                     tracing.AddOtlpExporter();
@@ -162,6 +182,30 @@ public static class ApplicationExtensions
     }
 
     //--------------------------------------------------------------------------------
+    // MCP
+    //--------------------------------------------------------------------------------
+
+    public static IHostApplicationBuilder ConfigureMcp(this IHostApplicationBuilder builder)
+    {
+        builder.Services
+            .AddMcpServer(static options =>
+            {
+                options.ServerInfo = new Implementation
+                {
+                    Name = ServerName,
+                    Title = "Image Generator",
+                    Version = Source.Version
+                };
+                options.ServerInstructions = ServerInstructions;
+            })
+            .WithHttpTransport()
+            .WithTools<GenerationTools>()
+            .WithTools<ImageTools>();
+
+        return builder;
+    }
+
+    //--------------------------------------------------------------------------------
     // Components
     //--------------------------------------------------------------------------------
 
@@ -169,6 +213,27 @@ public static class ApplicationExtensions
     {
         // System
         builder.Services.AddSingleton(TimeProvider.System);
+
+        // Setting
+        builder.Services.AddOptions<ImageGeneratorSetting>().BindConfiguration("ImageGenerator").ValidateDataAnnotations().ValidateOnStart();
+        builder.Services.AddSingleton(static p => p.GetRequiredService<IOptions<ImageGeneratorSetting>>().Value);
+        builder.Services.AddOptions<ImageProcessingSetting>().BindConfiguration("ImageProcessing").ValidateDataAnnotations().ValidateOnStart();
+        builder.Services.AddSingleton(static p => p.GetRequiredService<IOptions<ImageProcessingSetting>>().Value);
+
+        // Foundry
+        builder.Services.AddHttpClient(ImageGenerationService.HttpClientName, static client =>
+        {
+            // タイムアウトはリクエストごとにCancellationTokenで制御する
+            client.Timeout = Timeout.InfiniteTimeSpan;
+        });
+
+        // Service
+        builder.Services.AddSingleton<ImageGenerationService>();
+        builder.Services.AddSingleton<ImageProcessingService>();
+        builder.Services.AddSingleton<ImagePathService>();
+
+        // Worker
+        builder.Services.AddHostedService<FileRetentionWorker>();
 
         return builder;
     }
@@ -184,12 +249,26 @@ public static class ApplicationExtensions
         var prometheusSection = app.Configuration.GetSection("Prometheus");
         var prometheusUri = prometheusSection.GetValue("Uri", string.Empty);
 
+        var setting = app.Services.GetRequiredService<ImageGeneratorSetting>();
+        var paths = app.Services.GetRequiredService<ImagePathService>();
+
         app.Logger.InfoServiceStart();
         app.Logger.InfoServiceSettingsRuntime(RuntimeInformation.OSDescription, RuntimeInformation.FrameworkDescription, RuntimeInformation.RuntimeIdentifier);
         app.Logger.InfoServiceSettingsEnvironment(typeof(Program).Assembly.GetName().Version, Environment.CurrentDirectory);
         app.Logger.InfoServiceSettingsGC(GCSettings.IsServerGC, GCSettings.LatencyMode, GCSettings.LargeObjectHeapCompactionMode);
         app.Logger.InfoServiceSettingsThreadPool(workerThreads, completionPortThreads);
         app.Logger.InfoServiceSettingsTelemetry(app.Configuration.GetOtelExporterEndpoint(), prometheusUri);
+        app.Logger.InfoServiceSettingsImageGenerator(
+            setting.Endpoint,
+            setting.DeploymentName,
+            setting.ApiVersion,
+            String.IsNullOrEmpty(setting.ApiKey) ? "(not set)" : "****",
+            paths.OutputRoot,
+            setting.MaxRetries,
+            setting.RequestTimeoutMinutes,
+            setting.MaxConcurrency,
+            setting.MaxCount,
+            setting.RetentionDays);
     }
 
     //--------------------------------------------------------------------------------
@@ -198,6 +277,9 @@ public static class ApplicationExtensions
 
     public static WebApplication MapEndpoints(this WebApplication app)
     {
+        // MCP
+        app.MapMcp(McpEndpointPath);
+
         // Health
         app.MapHealthChecks(HealthEndpointPath);
 
@@ -212,6 +294,9 @@ public static class ApplicationExtensions
     {
         // Prepare instrument
         app.Services.GetRequiredService<ApplicationInstrument>();
+
+        // Prepare output directory
+        Directory.CreateDirectory(app.Services.GetRequiredService<ImagePathService>().OutputRoot);
 
         return ValueTask.CompletedTask;
     }
