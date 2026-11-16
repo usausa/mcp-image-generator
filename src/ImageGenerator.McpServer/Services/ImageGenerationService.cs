@@ -94,7 +94,7 @@ public sealed class ImageGenerationService : IDisposable
             ? $"openai/deployments/{setting.DeploymentName}/images/edits?api-version={setting.ApiVersion}"
             : $"openai/deployments/{setting.DeploymentName}/images/generations?api-version={setting.ApiVersion}";
 
-        var endpoint = setting.Endpoint.EndsWith('/') ? setting.Endpoint : setting.Endpoint + "/";
+        var endpoint = setting.Endpoint.EndsWith('/', StringComparison.Ordinal) ? setting.Endpoint : setting.Endpoint + "/";
         var requestUrl = new Uri(new Uri(endpoint), apiPath);
 
         onStatus?.Invoke("Sending request to Foundry...");

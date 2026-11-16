@@ -17,7 +17,7 @@ public static class ImageFormats
         }
 
         var text = value.Trim();
-        if (text.StartsWith('.'))
+        if (text.StartsWith('.', StringComparison.Ordinal))
         {
             text = text[1..];
         }

@@ -99,7 +99,7 @@ public sealed class ImagePathService
         var text = outputPath.Trim();
         var fullPath = ResolveOutputFullPath(text, outputPath);
 
-        var endsWithSeparator = text.EndsWith(Path.DirectorySeparatorChar) || text.EndsWith(Path.AltDirectorySeparatorChar);
+        var endsWithSeparator = text.EndsWith(Path.DirectorySeparatorChar, StringComparison.Ordinal) || text.EndsWith(Path.AltDirectorySeparatorChar, StringComparison.Ordinal);
         var extensionFormat = endsWithSeparator ? null : ImageFormats.FromExtension(Path.GetExtension(fullPath));
         if (extensionFormat is null)
         {
