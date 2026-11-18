@@ -2,7 +2,6 @@
 
   <PropertyGroup>
     <TargetFramework>net11.0</TargetFramework>
-    <CodeAnalysisRuleSet>..\..\Analyzers.ruleset</CodeAnalysisRuleSet>
     <UserSecretsId>ImageGenerator.McpServer-Secrets</UserSecretsId>
   </PropertyGroup>
 
